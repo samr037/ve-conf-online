@@ -202,3 +202,32 @@ private final class Env: CalculatorHost {
         #expect(t.parse("02:30") == 150)
     }
 }
+
+@Suite struct LibraryWideTests {
+    /// Every assistant in Victron's library assembles with its default answers on the user's device,
+    /// and reads back (reconstruction) to the same program.
+    @Test func everyAssistantAssemblesAndReadsBack() throws {
+        // s5: battery capacity set (Hub-4 divides by it). Microgrid legitimately refuses this firmware.
+        let config = try DeviceConfiguration(contentsOf: Fixtures.sample("s5.rvsc"))
+        let library = try AssistantLibrary(contentsOf: Fixtures.library)
+        var report: [String] = []
+        for p in library.latest where !["asfStart", "asfStop"].contains(p.baseName) {
+            let c = try AssistantComposer(library: library)
+            c.meta = MetaGenerator.source(for: config)
+            c.items = [.init(package: p)]
+            let b = c.build()
+            if p.baseName == "Microgrid enabler", b.messages.contains(where: { $0.text.contains("does not support Microgrid") }) { continue }
+            guard b.success else {
+                report.append("\(p.baseName): build — \(b.messages.first { $0.kind == .fatal || $0.kind == .error }?.text ?? "?")")
+                continue
+            }
+            let image = c.image(code: b.code)
+            let back = try AssistantComposer(library: library)
+            back.meta = c.meta
+            let r = try back.reconstruct(image: image)
+            if !r.success { report.append("\(p.baseName): readback — \(r.messages.first { $0.kind != .message }?.text ?? "?")") }
+        }
+        print(report.isEmpty ? "all assistants OK" : report.joined(separator: "\n"))
+        #expect(report.isEmpty, "\(report.joined(separator: "\n"))")
+    }
+}
