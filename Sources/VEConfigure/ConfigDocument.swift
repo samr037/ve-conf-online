@@ -59,6 +59,10 @@ final class ConfigDocument: ObservableObject, Identifiable {
         var c = config
         change(&c)
         guard c != old else { return }
+        if let refused = Validation.rejection(old: old, new: c, control: control, ruleContext) {
+            notices.append(refused)
+            return
+        }
         let found = Consequences.apply(old: old, new: &c, control: control)
         let forbidden = Access.forbiddenEdits(old: old, new: c, ruleContext)
         guard forbidden.isEmpty else {

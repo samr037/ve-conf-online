@@ -150,6 +150,69 @@ struct Notice: Identifiable, Equatable {
     static func == (a: Notice, b: Notice) -> Bool { a.id == b.id }
 }
 
+// MARK: - Validation (values VE Configure refuses: the old value is kept and a message shown)
+
+enum Validation {
+    /// The message VE Configure shows when it refuses the edit of `control` (`old` → `new`), or nil if accepted.
+    static func rejection(old: DeviceConfiguration, new c: DeviceConfiguration, control: String?, _ ctx: RuleContext) -> Notice? {
+        guard let name = control, let ctl = Catalog.shared.controls[name] else { return nil }
+        if let n = orderRule(ctl, new: c, ctx) { return n }
+        if let n = sequence(ctl, old: old, new: c) { return n }
+        return nil
+    }
+
+    static func label(_ ctl: CatalogControl) -> String { capitalizedFirst(ctl.changeListLabel ?? ctl.name) }
+
+    /// grid.chile.order / grid.romania.order (ChilePUVoltage @00550ef8, RomaniaPUVoltage @0055104c): U start < U stop,
+    /// message 0x55e954.
+    private static func orderRule(_ ctl: CatalogControl, new c: DeviceConfiguration, _ ctx: RuleContext) -> Notice? {
+        for id in ["grid.chile.order", "grid.romania.order"] {
+            guard let rule = Catalog.shared.rulesByID[id], rule.targets.contains(ctl.name), let expr = rule.expr else { continue }
+            let after = RuleContext(config: c, baseline: ctx.baseline, session: ctx.session)
+            guard after.evaluate(expr) == false else { continue }
+            let names = rule.targets.compactMap { Catalog.shared.controls[$0] }.map(label)
+            guard names.count == 2 else { continue }
+            return Notice(title: L("Illegal value!"), message: L("Illegal value!\n%@ should be lower than %@!", names[0], names[1]))
+        }
+        return nil
+    }
+
+    /// grid.sequence (GenericSequenceNoEqualsTest @005500b4 / WithEqualsTest @005500d0): the RelevantComponents values
+    /// must rise strictly (NoEquals) or not fall (WithEquals). Messages 0x55f630…0x55f834.
+    private static func sequence(_ ctl: CatalogControl, old: DeviceConfiguration, new c: DeviceConfiguration) -> Notice? {
+        guard let handler = ctl.handler("OnPeerDataSet"), handler.hasPrefix("GenericSequence"),
+              let list = ctl.semantics?.relevantComponents, list.count >= 2 else { return nil }
+        let equalsAllowed = handler == "GenericSequenceWithEqualsTest"
+        let items = list.compactMap { Catalog.shared.controls[$0] }
+        guard items.count == list.count else { return nil }
+        let codecs = items.compactMap { ValueCodec(control: $0) }
+        guard codecs.count == items.count, codecs.allSatisfy({ $0.isSupported(c) }) else { return nil }
+        let values = codecs.compactMap { $0.display(c) }
+        guard values.count == codecs.count else { return nil }
+        // Only the edited control's change is judged (VE Configure checks on its OnPeerDataSet).
+        guard let me = items.firstIndex(where: { $0.name == ctl.name }), codecs[me].raw(old) != codecs[me].raw(c) else { return nil }
+        let ok = zip(values, values.dropFirst()).allSatisfy { equalsAllowed ? $0 <= $1 + 1e-9 : $0 < $1 - 1e-9 }
+        guard !ok else { return nil }
+        let title = L("The chosen value is not allowed!")
+        if items.count == 2 {
+            let other = me == 0 ? 1 : 0
+            let otherText = label(items[other]) + " (" + codecs[other].formatted(c) + ")"
+            let message: String
+            switch (me == 0, equalsAllowed) {
+            case (true, true): message = L("%@ must be lower than or equal to: %@", label(ctl), otherText)
+            case (true, false): message = L("%@ must be lower than: %@", label(ctl), otherText)
+            case (false, true): message = L("%@ must be higher than or equal to: %@", label(ctl), otherText)
+            case (false, false): message = L("%@ must be higher than: %@", label(ctl), otherText)
+            }
+            return Notice(title: title, message: message)
+        }
+        let rows = zip(items, codecs).map { "  " + label($0) + ": " + $1.formatted(c) }.joined(separator: "\n")
+        return Notice(title: title, message: (equalsAllowed
+            ? L("The following values must be in rising order (equal values are allowed):")
+            : L("The following values must be in rising order (equal values are not allowed):")) + "\n" + rows)
+    }
+}
+
 // MARK: - Consequences of an edit (SetCheckRules and the AfterDataSet handlers)
 
 enum Consequences {

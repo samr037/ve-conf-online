@@ -310,14 +310,17 @@ struct CatalogControl: Decodable {
         var precision: Int?
         var inverted: Bool?
         var linkedControl: String?
+        /// Controls whose values must be in rising order (GenericSequence*Test).
+        var relevantComponents: [String]?
 
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: Keys.self)
             precision = try? c.decodeIfPresent(Int.self, forKey: .precision)
             inverted = try? c.decodeIfPresent(Bool.self, forKey: .inverted)
             linkedControl = try? c.decodeIfPresent(String.self, forKey: .linkedControl)
+            relevantComponents = try? c.decodeIfPresent([String].self, forKey: .relevantComponents)
         }
-        private enum Keys: String, CodingKey { case precision, inverted, linkedControl }
+        private enum Keys: String, CodingKey { case precision, inverted, linkedControl, relevantComponents }
     }
 
     struct Event: Decodable { var handler: String }
