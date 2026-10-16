@@ -184,6 +184,9 @@ struct InfoButton: View {
                             .font(.caption.monospaced()).foregroundStyle(.tertiary).textSelection(.enabled)
                     }
                 }
+                // The row sets .trailing for its value column; the popover inherits it otherwise.
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
                 .frame(width: 380, alignment: .leading)
             }
