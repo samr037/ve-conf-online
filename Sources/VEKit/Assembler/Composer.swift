@@ -234,61 +234,128 @@ public enum AssistantError: Error, CustomStringConvertible {
     }
 }
 
-/// One run of an assistant's wizard. Non-blocking: each call re-assembles from scratch up to the step to show
-/// (the same replay mechanism VE Configure uses for stepback), so the UI simply answers and calls again.
+/// One run of an assistant's wizard (driver FUN_00500bec, docs/re/03-assembler.md §11.7).
+///
+/// Like VE Configure, the assembly is one continuous run that pauses at each step shown: it runs on a worker thread
+/// that waits for the answer, so whatever the sources do once a step is handled (`$AUEHandled`, `.ALS`, `_VEC`
+/// settings) happens exactly once, with the user's answer. Only Previous (and a source's `.RESTART`) restarts the
+/// assembly from scratch, replaying the earlier steps with their stored answers.
+///
+/// The calls are synchronous: `next`/`previous` return once the worker shows the following step or has finished.
+/// After a cancel, finish or failure the wizard ignores further calls.
 public final class AssistantWizard {
     public enum Status { case step(AssistantStepPresentation), finished(AssistantBuildResult), failed([AssemblerMessage]), cancelled }
 
     let composer: AssistantComposer
     public let assistant: String
-    private var displayStep: Int32 = 1
-    private var backList: [Value] = []
-    private var tables: [String: AnswerTable]
-    private var pending: AssistantDecision?
-    public private(set) var status: Status = .cancelled
+    public private(set) var status: Status
+    private let session: WizardSession
 
     init(composer: AssistantComposer, assistant: String) {
         self.composer = composer
         self.assistant = assistant
-        tables = composer.answers
-        run()
+        session = WizardSession { session in
+            Self.drive(composer: composer, assistant: assistant, session: session)
+        }
+        status = session.start()
+        if case .finished(let r) = status { composer.answers = r.answers }
     }
 
-    public func next(_ values: [Int32]) { pending = .next(values); run() }
-    public func previous() { pending = .previous; run() }
-    public func cancel() { status = .cancelled }
+    deinit { session.abandon() }
 
-    private func run() {
+    /// A step is shown and waits for an answer.
+    public var isWaiting: Bool { if case .step = status { true } else { false } }
+
+    public func next(_ values: [Int32]) { answer(.next(values)) }
+    public func previous() { answer(.previous) }
+    public func cancel() {
+        guard isWaiting else { return }
+        _ = session.answer(.cancel)
+        status = .cancelled
+    }
+
+    private func answer(_ d: AssistantDecision) {
+        guard isWaiting else { return }
+        status = session.answer(d)
+        if case .finished(let r) = status { composer.answers = r.answers }
+    }
+
+    /// Worker side: the assembly loop, restarted on stepback.
+    private static func drive(composer: AssistantComposer, assistant: String, session: WizardSession) -> Status {
+        var displayStep: Int32 = 1
+        var backList: [Value] = []
+        var tables = composer.answers
         for _ in 0..<1024 {
-            let a = composer.assembler { [assistant] in $0 == assistant ? .userEntry : .build }
+            let a = composer.assembler { $0 == assistant ? .userEntry : .build }
             a.tables = tables
             a.displayStep = displayStep
             a.backStepList = backList
-            var captured: AssistantStepPresentation?
-            a.presentStep = { [unowned self] p in
-                if let d = self.pending { self.pending = nil; return d }
-                captured = p
-                return .suspend
-            }
+            a.presentStep = { session.present($0) }
             let ok = a.assemble(root: composer.root())
             a.captureDriverState()
             displayStep = a.displayStep
             backList = a.backStepList
             tables = a.tables
             if ok {
-                composer.answers = tables
                 var r = AssistantBuildResult(success: true, code: a.code, messages: a.messages, answers: tables, cancelled: false)
                 r.vecChanges = AssistantComposer.vecChanges(meta: composer.meta, assembler: a)
                 r.steps = a.stepLog
-                status = .finished(r)
-                return
+                return .finished(r)
             }
-            let first = a.messages.first(where: { $0.kind == .fatal })?.text
-            if first == AssistantAssembler.suspendMessage, let p = captured { status = .step(p); return }
-            if first == AssistantAssembler.restartMessage { continue }
-            status = .failed(a.messages)
-            return
+            if a.cancelled { return .cancelled }
+            if a.messages.first(where: { $0.kind == .fatal })?.text == AssistantAssembler.restartMessage { continue }
+            return .failed(a.messages)
         }
-        status = .failed([AssemblerMessage(kind: .fatal, text: "Wizard did not converge", position: "")])
+        return .failed([AssemblerMessage(kind: .fatal, text: "Wizard did not converge", position: "")])
+    }
+}
+
+/// Hand-off between the caller and the wizard's worker thread: exactly one of them runs at a time.
+private final class WizardSession: @unchecked Sendable {
+    private let toWorker = DispatchSemaphore(value: 0)
+    private let toCaller = DispatchSemaphore(value: 0)
+    private let work: (WizardSession) -> AssistantWizard.Status
+    private var decision: AssistantDecision = .cancel
+    private var event: AssistantWizard.Status = .cancelled
+    private var running = false
+
+    init(work: @escaping (WizardSession) -> AssistantWizard.Status) { self.work = work }
+
+    /// Starts the worker and returns the first step (or the end).
+    func start() -> AssistantWizard.Status {
+        running = true
+        let t = Thread { [self] in
+            let end = work(self)
+            event = end
+            running = false
+            toCaller.signal()
+        }
+        t.stackSize = 64 << 20   // nested .SOURCE / macro recursion
+        t.name = "Assistant wizard"
+        t.start()
+        toCaller.wait()
+        return event
+    }
+
+    /// Caller side: hands the answer to the waiting worker and returns its next step (or the end).
+    func answer(_ d: AssistantDecision) -> AssistantWizard.Status {
+        guard running else { return event }
+        decision = d
+        toWorker.signal()
+        toCaller.wait()
+        return event
+    }
+
+    /// Worker side: shows a step and waits for the answer.
+    func present(_ p: AssistantStepPresentation) -> AssistantDecision {
+        event = .step(p)
+        toCaller.signal()
+        toWorker.wait()
+        return decision
+    }
+
+    /// Lets a worker that still waits for an answer finish (cancel), so the thread ends.
+    func abandon() {
+        while running { _ = answer(.cancel) }
     }
 }
