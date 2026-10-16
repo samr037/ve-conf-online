@@ -89,7 +89,8 @@ struct SystemDiagram: View {
         conductor(&ctx, from: CGPoint(x: multi.midX + 10, y: battery.minY), to: CGPoint(x: multi.midX + 10, y: multi.maxY),
                   color: Theme.dcNegative, lit: dcLit, flow: dcFlow, phase: phase)
         batterySymbol(&ctx, in: battery, lit: lit.contains(.battery) || lit.contains(.charger))
-        annotate(&ctx, .battery, at: CGPoint(x: battery.minX - 34, y: battery.midY), anchor: .trailing)
+        // Against the DC pair, left of the red conductor, halfway down.
+        annotate(&ctx, .battery, at: CGPoint(x: multi.midX - 18, y: (multi.maxY + battery.minY) / 2), anchor: .trailing)
 
         multiBlock(&ctx, in: multi)
         // Terminal dots where conductors land on the Multi.

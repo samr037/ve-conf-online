@@ -216,3 +216,4 @@
 "Enabling the virtual switch will disable the assistant functionality. All configured assistants will be removed! Continue?" = "Enabling the virtual switch will disable the assistant functionality. All configured assistants will be removed! Continue?";
 "Remove Assistants" = "Remove Assistants";
 "Remove All Assistants" = "Remove All Assistants";
+"Absorption %@ · Float %@" = "Absorption %@ · Float %@";

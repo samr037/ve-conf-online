@@ -216,3 +216,4 @@
 "Enabling the virtual switch will disable the assistant functionality. All configured assistants will be removed! Continue?" = "Activar el interruptor virtual desactiva la función de asistentes. ¡Se eliminarán todos los asistentes configurados! ¿Continuar?";
 "Remove Assistants" = "Eliminar asistentes";
 "Remove All Assistants" = "Eliminar todos los asistentes";
+"Absorption %@ · Float %@" = "Absorción %@ · Flotación %@";

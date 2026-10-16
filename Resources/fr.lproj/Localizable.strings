@@ -216,3 +216,4 @@
 "Enabling the virtual switch will disable the assistant functionality. All configured assistants will be removed! Continue?" = "Activer le commutateur virtuel désactive la fonction Assistants. Tous les Assistants configurés seront supprimés ! Continuer ?";
 "Remove Assistants" = "Supprimer les Assistants";
 "Remove All Assistants" = "Supprimer tous les Assistants";
+"Absorption %@ · Float %@" = "Absorption %@ · Float %@";

@@ -81,7 +81,7 @@ private struct FocusedDiagram: View {
         if let t = text(6, "A") { out[.acIn] = .init(text: t, changed: c.raw(6) != b.raw(6)) }
         if let t = text(5, "V") { out[.acOut] = .init(text: t, changed: c.raw(5) != b.raw(5)) }
         if let abs = text(2, "V"), let float = text(3, "V") {
-            out[.battery] = .init(text: "\(abs) · \(float)", changed: c.raw(2) != b.raw(2) || c.raw(3) != b.raw(3))
+            out[.battery] = .init(text: L("Absorption %@ · Float %@", abs, float), changed: c.raw(2) != b.raw(2) || c.raw(3) != b.raw(3))
         }
         return out
     }
