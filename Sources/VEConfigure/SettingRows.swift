@@ -356,8 +356,7 @@ struct CatalogNumberRow: View {
     private func commit() {
         defer { field.text = nil }
         guard let text = field.text, let codec = row.codec else { return }
-        let normalized = text.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespaces)
-        guard let v = Double(normalized) else { NSSound.beep(); return }
+        guard let v = ValueCodec.parseNumber(text) else { NSSound.beep(); return }
         var ok = true
         document.edit(L("Change %@", row.label), control: row.control.name) { c in ok = codec.setDisplay(v, in: &c) }
         if !ok { NSSound.beep() }

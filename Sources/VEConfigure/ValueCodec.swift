@@ -272,6 +272,14 @@ struct ValueCodec {
         }
     }
 
+    /// A typed number: finite decimal only ("12", "-0.5", "48,2" with a decimal comma). No hex, exponent, nan or inf.
+    static func parseNumber(_ text: String) -> Double? {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: ",", with: ".")
+        guard t.range(of: #"^[+-]?([0-9]+(\.[0-9]*)?|\.[0-9]+)$"#, options: .regularExpression) != nil,
+              let v = Double(t), v.isFinite else { return nil }
+        return v
+    }
+
     // MARK: Display
 
     func display(_ c: DeviceConfiguration) -> Double? {
