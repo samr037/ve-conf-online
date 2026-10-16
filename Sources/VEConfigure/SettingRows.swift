@@ -92,11 +92,7 @@ struct RowState {
         return control.settingTargets.contains { config.raw($0) != ctx.baseline.raw($0) }
     }
 
-    var unit: String? {
-        guard var u = control.unit, !u.isEmpty else { return nil }
-        if u == "Hr" { u = "h" } else if u == "seconds" { u = "s" } else if u == "deg C" || u == "degC" { u = "°C" }
-        return L10n.catalog(u)
-    }
+    var unit: String? { Units.display(control.unit) }
 
     /// Range, default and step line for the tooltip and the info popover.
     var rangeDetail: String? {
@@ -224,11 +220,7 @@ struct CatalogRow: View {
     }
 
     private func restore() {
-        let base = row.ctx.baseline
-        document.edit(L("Restore %@", row.label), control: row.control.name) { c in
-            if let v = row.control.variable, v.kind == .flag, let n = v.index { c.setFlag(n, base.flag(n)) }
-            for id in row.control.settingTargets { c.setRaw(id, base.raw(id)) }
-        }
+        document.restore(control: row.control, actionName: L("Restore %@", row.label))
     }
 
     private var editable: Bool { row.enabled && !row.locked }
@@ -263,6 +255,7 @@ struct CatalogRow: View {
                 Toggle(row.label, isOn: Binding(
                     get: { on },
                     set: { new in
+                        if row.control.name == "StopChargeDueToTempCheckBox", new, !Confirmations.allowTBatStop() { return }
                         document.edit(L("Change %@", row.label), control: row.control.name) { c in
                             LocalControls.setChecked(row.control.name, new, in: &c)
                         }
@@ -363,8 +356,7 @@ struct CatalogNumberRow: View {
     private func commit() {
         defer { field.text = nil }
         guard let text = field.text, let codec = row.codec else { return }
-        let normalized = text.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespaces)
-        guard let v = Double(normalized) else { NSSound.beep(); return }
+        guard let v = ValueCodec.parseNumber(text) else { NSSound.beep(); return }
         var ok = true
         document.edit(L("Change %@", row.label), control: row.control.name) { c in ok = codec.setDisplay(v, in: &c) }
         if !ok { NSSound.beep() }
@@ -482,7 +474,9 @@ struct CatalogChoiceRow: View {
             return
         }
         if row.control.name == "GridCodeComboBox" {
-            document.edit(L("Change Grid Code"), control: row.control.name) { GridPages.apply(gridCode: value, to: &$0) }
+            guard value != Int(row.config.raw(81)), !Access.isLocked(row.control, document.ruleContext),
+                  let n = Confirmations.resolve(GridPages.choose(value, document.ruleContext)) else { return }
+            document.edit(L("Change Grid Code"), control: row.control.name) { GridPages.apply(gridCode: n, to: &$0) }
             return
         }
         document.edit(L("Change %@", row.label), control: row.control.name) { codec.setRaw(value, in: &$0) }

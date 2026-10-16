@@ -102,11 +102,49 @@ enum PageLayout {
                     } else {
                         process(g.children, ancestors: ancestors + [g])
                     }
+                case .pageControl(let pc):
+                    // A tab control inside a page (VDE reactive power: cos φ / Q sheets): each sheet is a section, its
+                    // visibility carried by an ancestor named after the sheet (see ReactivePanels).
+                    for sheet in pc.pages {
+                        flush()
+                        current = LayoutSection(id: sheet.name, title: ReactivePanels.title(sheet: sheet.name))
+                        let anchor = CatalogGroup(kind: .panel, name: sheet.name, caption: nil, tag: nil, frame: nil, visibleAtDesign: nil,
+                                                  enabledWhen: nil, visibleWhen: nil, children: [])
+                        process(sheet.children, ancestors: ancestors + [anchor])
+                        flush()
+                    }
                 default:
                     break
                 }
             }
         }
+    }
+}
+
+/// grid.vde.reactiveType (FUN_0054f3ac): the reactive-power type picker shows one sheet (cos φ for types 0–1,
+/// Q for 2–3) and in it one panel: 0 fixed cos φ, 1 cos φ(P) curve, 2 fixed Q, 3 Q(U) curve.
+enum ReactivePanels {
+    static let typeExpr = "raw(ctl.ReactivePowerTypeSettingComboBox)"
+    static let types: [String: Set<Int>] = [
+        "VDECosPhiCurveTabSheet": [0, 1], "VDEQCurveTabSheet": [2, 3],
+        "VDECosPhiFixedSettings": [0], "VDECosPhiCurveSettings": [1], "VDEQFixedSettings": [2], "VDEQCurveSettings": [3],
+    ]
+
+    /// nil when the group is not one of the reactive-power panels; false when the type is unknown.
+    static func isVisible(_ name: String, _ ctx: RuleContext) -> Bool? {
+        guard let set = types[name] else { return nil }
+        guard let e = ExprParser.parse(typeExpr), let t = ctx.eval(e)?.number else { return false }
+        return set.contains(Int(t))
+    }
+
+    /// Section title: the picker's item text for the panel shown.
+    static func title(sheet: String) -> CatalogText? {
+        guard let set = types[sheet], let items = Catalog.shared.controls["ReactivePowerTypeSettingComboBox"]?.items else { return nil }
+        var t = CatalogText("")
+        t.variants = set.sorted().compactMap { v in
+            items.first { $0.value == v }.map { CatalogText.Variant(when: "\(typeExpr) == \(v)", text: $0.text.fallback) }
+        }
+        return t
     }
 }
 
@@ -154,8 +192,9 @@ enum SectionPages {
         row.ancestors.allSatisfy { Visibility.isVisible($0, ctx) } && Visibility.isVisible(row.control, ctx)
     }
 
+    /// Enable rules that cannot be evaluated offline disable the control (fail closed).
     static func isEnabled(_ row: LayoutRow, page: String, _ ctx: RuleContext) -> Bool {
-        row.ancestors.allSatisfy { ctx.all($0.enabledWhen) } && ctx.all(row.control.enabledWhen)
+        row.ancestors.allSatisfy { ctx.all($0.enabledWhen, unknownIs: false) } && ctx.all(row.control.enabledWhen, unknownIs: false)
             && Visibility.extraEnabled(row.control, page: Catalog.shared.pageOfControl[row.control.name] == "ChargerSheet" ? "ChargerSheet" : page, ctx)
     }
 }
@@ -164,8 +203,6 @@ enum SectionPages {
 
 /// UI state of the open page (sheets), kept outside the configuration.
 final class PageUIState: ObservableObject {
-    @Published var askingPassword = false
-    @Published var password = ""
     @Published var showingPresets = false
     @Published var presetID: String?
 }
@@ -202,7 +239,6 @@ struct SectionView: View {
                 emptyPage
             }
         }
-        .sheet(isPresented: $ui.askingPassword) { PasswordSheet(document: document, ui: ui) }
         .sheet(isPresented: $ui.showingPresets) { BatteryPresetSheet(document: document, ui: ui) }
         .alert(document.notices.first?.title ?? "", isPresented: Binding(
             get: { !document.notices.isEmpty },
@@ -304,56 +340,21 @@ struct CatalogPageView: View {
 
     @ViewBuilder private var passwordBanner: some View {
         SwiftUI.Section {
-            if document.session.gridPasswordEntered {
-                Label(L("Grid code password entered. It is checked by the device when you upload the file."), systemImage: "lock.open")
+            if Access.gridCodeNeedsPassword(ctx) {
+                Label(L("Grid code settings are protected by the grid code password. VE Configure for Mac cannot verify that password, so these settings are read-only here. Use VE Configure to change them."),
+                      systemImage: "lock.fill")
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if page.name == GridPages.selectionPage {
+                Label(L("No grid code was selected in this file, so the initial selection does not require a password. Make sure to choose the correct country / standard: once sent to the device, a password is required to change or disable it."),
+                      systemImage: "lock.open")
                     .foregroundStyle(.secondary)
-            } else if Access.gridCodeNeedsPassword(ctx) {
-                HStack {
-                    Label(L("Grid code settings are protected. As in VE Configure, changing them requires the grid code password from your installer or Victron."),
-                          systemImage: "lock.fill")
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer()
-                    Button(L("Unlock with Password…")) { ui.askingPassword = true }
-                }
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
 }
 
 // MARK: - Sheets
-
-struct PasswordSheet: View {
-    @ObservedObject var document: ConfigDocument
-    @ObservedObject var ui: PageUIState
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label(L("Grid Code Password"), systemImage: "lock.fill").font(.headline)
-            Text(L("Changing the grid code or its parameters requires the grid code password. This app cannot verify it offline: the device checks it when the file is uploaded, and rejects protected changes if it is wrong."))
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            SecureField(L("Password"), text: $ui.password)
-                .textFieldStyle(.roundedBorder)
-                .onSubmit(unlock)
-            HStack {
-                Spacer()
-                Button(L("Cancel"), role: .cancel) { ui.password = ""; ui.askingPassword = false }
-                    .keyboardShortcut(.cancelAction)
-                Button(L("Unlock"), action: unlock)
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(ui.password.isEmpty)
-            }
-        }
-        .padding(20)
-        .frame(width: 420)
-    }
-
-    private func unlock() {
-        guard !ui.password.isEmpty else { return }
-        document.enterGridPassword(ui.password)
-        ui.password = ""
-        ui.askingPassword = false
-    }
-}
 
 /// VE Configure's battery type dialog (TBatteryDefaultForm): presets in this system's voltage.
 struct BatteryPresetSheet: View {

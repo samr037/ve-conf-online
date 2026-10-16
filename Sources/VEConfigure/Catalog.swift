@@ -310,14 +310,17 @@ struct CatalogControl: Decodable {
         var precision: Int?
         var inverted: Bool?
         var linkedControl: String?
+        /// Controls whose values must be in rising order (GenericSequence*Test).
+        var relevantComponents: [String]?
 
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: Keys.self)
             precision = try? c.decodeIfPresent(Int.self, forKey: .precision)
             inverted = try? c.decodeIfPresent(Bool.self, forKey: .inverted)
             linkedControl = try? c.decodeIfPresent(String.self, forKey: .linkedControl)
+            relevantComponents = try? c.decodeIfPresent([String].self, forKey: .relevantComponents)
         }
-        private enum Keys: String, CodingKey { case precision, inverted, linkedControl }
+        private enum Keys: String, CodingKey { case precision, inverted, linkedControl, relevantComponents }
     }
 
     struct Event: Decodable { var handler: String }
@@ -406,9 +409,10 @@ struct CatalogControl: Decodable {
         return cleanDescription ?? L10n.catalog(staticLabel ?? help?.title)
     }
 
-    /// Settings this control writes (direct variable or grid words).
+    /// Settings this control writes (direct variable, grid words, or for a local control the settings it sets).
     var settingTargets: [Int] {
         if let v = variable, v.kind == .setting, let i = v.index { return [i] }
+        if kind == .localToggle || kind == .localChoice { return LocalControls.writtenControls(name).flatMap(\.settingTargets) }
         return peer?.peers.compactMap { $0.variable?.index } ?? []
     }
 }
@@ -525,5 +529,19 @@ extension GridCodes {
         let name = t[..<r.lowerBound].trimmingCharacters(in: .whitespaces)
         let rest = t[r.upperBound...].trimmingCharacters(in: .whitespaces)
         return rest.isEmpty ? name : "\(name) — \(rest)"
+    }
+}
+
+/// Units as shown next to values: VE Configure's "Hr", "seconds" and "deg C" in their short forms, translated.
+enum Units {
+    static func display(_ unit: String?) -> String? {
+        guard var u = unit?.trimmingCharacters(in: .whitespaces), !u.isEmpty else { return nil }
+        switch u {
+        case "Hr": u = "h"
+        case "seconds", "sec", "Seconds": u = "s"
+        case "deg C", "degC": u = "°C"
+        default: break
+        }
+        return L10n.catalog(u)
     }
 }

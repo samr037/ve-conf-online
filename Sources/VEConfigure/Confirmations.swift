@@ -30,11 +30,51 @@ enum Confirmations {
             continueTitle: L("Enable Microgrid"))
     }
 
+    /// charger.tbatStopToggle (StopChargeDueToTempCheckBoxClick @005511d8, message 0x55ff34): checking "stop charging
+    /// on battery temperature" asks first; declining leaves it off.
+    static func allowTBatStop() -> Bool {
+        ask(L("Battery temperature"),
+            informative: L("This feature is intended to be used with lithium battery systems which do NOT feature an internal temperature disconnect.\n\nThis option uses the temperature as measured by the temperature sensor wired directly to the inverter/charger.\n\nVictron Lithium Smart batteries: no need to use this feature\nVictron SuperPack batteries, HQ2040 and later: no need to use this feature\nAny other lithium battery, Victron or non-Victron: check the documentation"),
+            continueTitle: L("Enable"))
+    }
+
     /// Enabling the virtual switch removes every assistant (VE Configure 0x55da34).
     static func allowVirtualSwitch(assistantCount: Int) -> Bool {
         guard assistantCount > 0 else { return true }
         return ask(L("Warning"),
                    informative: L("Enabling the virtual switch will disable the assistant functionality. All configured assistants will be removed! Continue?"),
                    continueTitle: L("Remove Assistants"))
+    }
+
+    /// Runs the grid-code selection dialogs; returns the code to apply, or nil to keep the current one.
+    static func resolve(_ choice: GridPages.Choice) -> Int? {
+        switch choice {
+        case .accept(let n):
+            return n
+        case .reject(let message):
+            let a = NSAlert()
+            a.alertStyle = .warning
+            a.messageText = L("Grid code not changed")
+            a.informativeText = message
+            a.addButton(withTitle: L("OK"))
+            a.runModal()
+            return nil
+        case .propose(let message, let alternative, let button, let keep):
+            let a = NSAlert()
+            a.alertStyle = .warning
+            a.messageText = L("Grid code")
+            a.informativeText = message
+            a.addButton(withTitle: button)
+            if let keep { a.addButton(withTitle: L("Keep Option %d", keep)) }
+            a.addButton(withTitle: L("Cancel"))
+            switch a.runModal() {
+            case .alertFirstButtonReturn: return alternative
+            case .alertSecondButtonReturn: return keep
+            default: return nil
+            }
+        case .confirm(let message, let button, let then):
+            guard ask(L("Grid code"), informative: message, continueTitle: button) else { return nil }
+            return resolve(then)
+        }
     }
 }
