@@ -14,6 +14,8 @@ usage:
   vecfg set <file.rvsc> NAME=VALUE... -o <out.rvsc>
                                           change settings (physical units) or flags (on/off)
   vecfg assistants <allNNN.vfp>           list the assistants in a Victron library
+  vecfg reconstruct <allNNN.vfp> <file.rvsc> [--meta META.vll] [--all]
+                                          recover assistant answers from the device program
 """
 
 func fail(_ message: String) -> Never {
@@ -118,6 +120,28 @@ func assistants(_ path: String) {
     } catch { fail("\(path): \(error)") }
 }
 
+func reconstruct(_ args: [String]) {
+    guard args.count >= 2 else { fail(usage) }
+    let c = load(args[1])
+    do {
+        let lib = try AssistantLibrary(contentsOf: URL(fileURLWithPath: args[0]))
+        let composer = try AssistantComposer(library: lib)
+        if let i = args.firstIndex(of: "--meta"), i + 1 < args.count {
+            composer.meta = [UInt8](try Data(contentsOf: URL(fileURLWithPath: args[i + 1])))
+        }
+        let r = try composer.reconstruct(image: c.data.assistantMemory)
+        print("  assistants: " + ([composer.framework.start] + composer.items.map(\.package) + [composer.framework.stop])
+            .map { String(format: "%@_%04X", $0.baseName, $0.id) }.joined(separator: " + "))
+        print("  \(r.success ? "OK" : "FAILED") — \(r.code.count) bytes of code")
+        for m in r.messages.prefix(args.contains("--all") ? 1000 : 15) { print("  \(m)") }
+        if r.success {
+            for (name, table) in r.answers.sorted(by: { $0.key < $1.key }) where !table.answers.isEmpty {
+                print("  \(name): " + table.answers.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value.value)" }.joined(separator: " "))
+            }
+        }
+    } catch { fail("\(error)") }
+}
+
 var args = Array(CommandLine.arguments.dropFirst())
 guard let command = args.first else { fail(usage) }
 args.removeFirst()
@@ -126,5 +150,6 @@ case "show" where !args.isEmpty: show(args[0], all: args.contains("--all"))
 case "diff" where args.count == 2: diff(args[0], args[1])
 case "set": set(args)
 case "assistants" where !args.isEmpty: assistants(args[0])
+case "reconstruct": reconstruct(args)
 default: fail(usage)
 }

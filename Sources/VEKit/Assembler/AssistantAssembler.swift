@@ -59,7 +59,11 @@ public struct AssistantStepPresentation: Sendable {
     public var isFirst: Bool
 }
 
-public enum AssistantDecision: Sendable { case next([Int32]), previous, cancel }
+public enum AssistantDecision: Sendable {
+    case next([Int32]), previous, cancel
+    /// The UI has not answered yet: stop this run, show the step, and re-run once answered.
+    case suspend
+}
 
 final class AssistantAssembler: Assembler {
     /// Per-assistant answers, keyed by assistant name; kept between builds.
@@ -79,18 +83,22 @@ final class AssistantAssembler: Assembler {
 
     // MARK: Passes
 
+    /// Wizard driver state; survives restarts (stepback) and is mirrored into the `$Assistant…` labels.
+    var displayStep: Int32 = 0
+    var backStepList: [Value] = []
+    var cancelled = false
+
     override func reset(firstPass: Bool) {
+        // Read back what the sources may have changed (AUEStepBack, RemoveFromStepBack) before clearing.
+        if case .int(let d)? = global["$AssistantDisplayStep"]?.value { displayStep = d }
+        if case .list(let l)? = global["$AssistantBackStepList"]?.value { backStepList = l }
+        if case .bool(let c)? = global["$AssistantCancelled"]?.value { cancelled = c }
         let keep = firstPass ? nil : snapshotAssistantLabels()
         super.reset(firstPass: firstPass)
         if firstPass {
-            global["$AssistantCancelled"] = Label(value: .bool(false), flags: 1)
             global["$AssistantStep"] = Label(value: .int(0), flags: 2)
             global["$AutoNext"] = Label(value: .bool(false), flags: 2)
             global["$ForceDefaultOnAutoNext"] = Label(value: .bool(false), flags: 2)
-            if global["$AssistantDisplayStep"] == nil {
-                global["$AssistantDisplayStep"] = Label(value: .int(0), flags: 6)
-                global["$AssistantBackStepList"] = Label(value: .list([]), flags: 6)
-            }
             for name in tables.keys where !(states[name]?.keepsAnswers ?? true) {
                 tables[name] = AnswerTable()
             }
@@ -98,16 +106,25 @@ final class AssistantAssembler: Assembler {
         } else if let keep {
             for (k, v) in keep { global[k] = v }
         }
+        global["$AssistantCancelled"] = Label(value: .bool(cancelled), flags: 1)
+        global["$AssistantDisplayStep"] = Label(value: .int(displayStep), flags: 6)
+        global["$AssistantBackStepList"] = Label(value: .list(backStepList), flags: 6)
         global["$AUEHandled"] = Label(value: .bool(false), flags: 1)
         global["$HandledAUEStep"] = Label(value: .string([]), flags: 1)
         global["$AssemblerState"] = Label(value: .int(0), flags: 1)
         global["$AssemblerPass"] = Label(value: .int(0), flags: 1)
     }
 
+    /// Syncs the driver state from the labels after an assembly run.
+    func captureDriverState() {
+        if case .int(let d)? = global["$AssistantDisplayStep"]?.value { displayStep = d }
+        if case .list(let l)? = global["$AssistantBackStepList"]?.value { backStepList = l }
+        if case .bool(let c)? = global["$AssistantCancelled"]?.value { cancelled = c }
+    }
+
     private func snapshotAssistantLabels() -> [String: Label] {
         var out: [String: Label] = [:]
-        for k in ["$AssistantCancelled", "$AssistantStep", "$AutoNext", "$ForceDefaultOnAutoNext",
-                  "$AssistantDisplayStep", "$AssistantBackStepList"] {
+        for k in ["$AssistantStep", "$AutoNext", "$ForceDefaultOnAutoNext"] {
             if let l = global[k] { out[k] = l }
         }
         return out
@@ -192,6 +209,7 @@ final class AssistantAssembler: Assembler {
     }
 
     static let restartMessage = "Assembly must be restarted for stepback"
+    static let suspendMessage = "Waiting for the user"
 
     /// Errors of assistant pseudo-ops are fatal (§10.3).
     private func fatal(_ text: String) { report(text, kind: .fatal, fatal: true) }
@@ -371,6 +389,13 @@ final class AssistantAssembler: Assembler {
                 case .cancel:
                     global["$AssistantCancelled"]?.value = .bool(true)
                     report("Assembly cancelled by user", kind: .fatal, fatal: true)
+                    return
+                case .suspend:
+                    if case .list(var back)? = global["$AssistantBackStepList"]?.value, !back.isEmpty {
+                        back.removeLast()
+                        global["$AssistantBackStepList"]?.value = .list(back)
+                    }
+                    report(Self.suspendMessage, kind: .fatal, fatal: true)
                     return
                 }
             }

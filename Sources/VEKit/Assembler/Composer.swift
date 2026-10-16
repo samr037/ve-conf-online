@@ -43,7 +43,7 @@ public final class AssistantComposer {
         return LineList(header: "Assistant Composer", lines: lines)
     }
 
-    private func makeAssembler(state: (String) -> AssemblerState) -> AssistantAssembler {
+    fileprivate func makeAssembler(state: (String) -> AssemblerState) -> AssistantAssembler {
         let a = AssistantAssembler()
         let packages = Dictionary(allPackages.map { ($0.baseName, $0) }, uniquingKeysWith: { a, _ in a })
         let meta = self.meta
@@ -76,22 +76,12 @@ public final class AssistantComposer {
         return AssistantBuildResult(success: verified, code: a.code, messages: a.messages, answers: a.tables, cancelled: false)
     }
 
-    /// Runs one assistant's wizard (state 5) while the others replay their stored answers.
-    public func configure(_ assistant: String, presentStep: @escaping (AssistantStepPresentation) -> AssistantDecision) -> AssistantBuildResult {
-        let a = makeAssembler { $0 == assistant ? .userEntry : .build }
-        a.presentStep = presentStep
-        a.global["$AssistantDisplayStep"] = Label(value: .int(1), flags: 6)
-        a.global["$AssistantBackStepList"] = Label(value: .list([]), flags: 6)
-        var ok = false
-        for _ in 0..<512 {
-            ok = a.assemble(root: rootList())
-            if ok || a.global["$AssistantCancelled"]?.value == .bool(true) { break }
-            guard a.messages.first?.text == AssistantAssembler.restartMessage else { break }
-        }
-        let cancelled = a.global["$AssistantCancelled"]?.value == .bool(true)
-        if !cancelled { answers = a.tables }
-        return AssistantBuildResult(success: ok, code: a.code, messages: a.messages, answers: a.tables, cancelled: cancelled)
-    }
+    /// Starts the wizard of one assistant (state 5); the others replay their stored answers.
+    public func wizard(for assistant: String) -> AssistantWizard { AssistantWizard(composer: self, assistant: assistant) }
+
+    func assembler(states: @escaping (String) -> AssemblerState) -> AssistantAssembler { makeAssembler(state: states) }
+
+    func root() -> LineList { rootList() }
 
     // MARK: Device image
 
@@ -171,5 +161,61 @@ public enum AssistantError: Error, CustomStringConvertible {
         switch self {
         case .unknownAssistant(let id): String(format: "An Assistant, which is not on your system (ID 0x%04X), is installed in the device.", id)
         }
+    }
+}
+
+/// One run of an assistant's wizard. Non-blocking: each call re-assembles from scratch up to the step to show
+/// (the same replay mechanism VE Configure uses for stepback), so the UI simply answers and calls again.
+public final class AssistantWizard {
+    public enum Status { case step(AssistantStepPresentation), finished(AssistantBuildResult), failed([AssemblerMessage]), cancelled }
+
+    let composer: AssistantComposer
+    public let assistant: String
+    private var displayStep: Int32 = 1
+    private var backList: [Value] = []
+    private var tables: [String: AnswerTable]
+    private var pending: AssistantDecision?
+    public private(set) var status: Status = .cancelled
+
+    init(composer: AssistantComposer, assistant: String) {
+        self.composer = composer
+        self.assistant = assistant
+        tables = composer.answers
+        run()
+    }
+
+    public func next(_ values: [Int32]) { pending = .next(values); run() }
+    public func previous() { pending = .previous; run() }
+    public func cancel() { status = .cancelled }
+
+    private func run() {
+        for _ in 0..<1024 {
+            let a = composer.assembler { [assistant] in $0 == assistant ? .userEntry : .build }
+            a.tables = tables
+            a.displayStep = displayStep
+            a.backStepList = backList
+            var captured: AssistantStepPresentation?
+            a.presentStep = { [unowned self] p in
+                if let d = self.pending { self.pending = nil; return d }
+                captured = p
+                return .suspend
+            }
+            let ok = a.assemble(root: composer.root())
+            a.captureDriverState()
+            displayStep = a.displayStep
+            backList = a.backStepList
+            tables = a.tables
+            if ok {
+                composer.answers = tables
+                status = .finished(AssistantBuildResult(success: true, code: a.code, messages: a.messages, answers: tables, cancelled: false))
+                return
+            }
+            let first = a.messages.first(where: { $0.kind == .fatal })?.text
+            if first == AssistantAssembler.suspendMessage, let p = captured { status = .step(p); return }
+            if first == AssistantAssembler.restartMessage { continue }
+            status = .failed(a.messages)
+            return
+        }
+        status = .failed([AssemblerMessage(kind: .fatal, text: "Wizard did not converge", position: "")])
     }
 }
