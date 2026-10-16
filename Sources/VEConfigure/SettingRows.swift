@@ -255,6 +255,7 @@ struct CatalogRow: View {
                 Toggle(row.label, isOn: Binding(
                     get: { on },
                     set: { new in
+                        if row.control.name == "StopChargeDueToTempCheckBox", new, !Confirmations.allowTBatStop() { return }
                         document.edit(L("Change %@", row.label), control: row.control.name) { c in
                             LocalControls.setChecked(row.control.name, new, in: &c)
                         }

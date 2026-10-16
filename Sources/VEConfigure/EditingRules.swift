@@ -235,7 +235,23 @@ enum Validation {
         guard let name = control, let ctl = Catalog.shared.controls[name] else { return nil }
         if let n = orderRule(ctl, new: c, ctx) { return n }
         if let n = sequence(ctl, old: old, new: c) { return n }
+        if let n = socNeedsMonitor(ctl, old: old, new: c, ctx) { return n }
         return nil
+    }
+
+    /// inverter.socEditNeedsMonitor (LOWSOCStopSettingEditAfterInputFormCreation @00548060): the SOC shut-down levels
+    /// cannot be set while the battery monitor is disabled. Also applies to switching the SOC shut-down on, which
+    /// sets those levels.
+    private static func socNeedsMonitor(_ ctl: CatalogControl, old: DeviceConfiguration, new c: DeviceConfiguration, _ ctx: RuleContext) -> Notice? {
+        guard let rule = Catalog.shared.rulesByID["inverter.socEditNeedsMonitor"], let expr = rule.expr else { return nil }
+        let turningOn = ctl.name == "EnableLowSOCShutDownCheckBox"
+            && LocalControls.isChecked(ctl.name, old) == false && LocalControls.isChecked(ctl.name, c) == true
+        guard rule.targets.contains(ctl.name) || turningOn else { return nil }
+        let before = RuleContext(config: old, baseline: ctx.baseline, session: ctx.session)
+        // The monitor can only be off when its checkbox exists (BatteryCapacity minimum 0).
+        guard let monitor = Catalog.shared.controls["EnableBatteryMonitorCheckBox"], Visibility.isVisible(monitor, before),
+              before.evaluate(expr) != true else { return nil }
+        return Notice(title: L("Battery monitor disabled"), message: L("Please enable the battery monitor on the general page first!"))
     }
 
     static func label(_ ctl: CatalogControl) -> String { capitalizedFirst(ctl.changeListLabel ?? ctl.name) }

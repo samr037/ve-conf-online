@@ -30,6 +30,14 @@ enum Confirmations {
             continueTitle: L("Enable Microgrid"))
     }
 
+    /// charger.tbatStopToggle (StopChargeDueToTempCheckBoxClick @005511d8, message 0x55ff34): checking "stop charging
+    /// on battery temperature" asks first; declining leaves it off.
+    static func allowTBatStop() -> Bool {
+        ask(L("Battery temperature"),
+            informative: L("This feature is intended to be used with lithium battery systems which do NOT feature an internal temperature disconnect.\n\nThis option uses the temperature as measured by the temperature sensor wired directly to the inverter/charger.\n\nVictron Lithium Smart batteries: no need to use this feature\nVictron SuperPack batteries, HQ2040 and later: no need to use this feature\nAny other lithium battery, Victron or non-Victron: check the documentation"),
+            continueTitle: L("Enable"))
+    }
+
     /// Enabling the virtual switch removes every assistant (VE Configure 0x55da34).
     static func allowVirtualSwitch(assistantCount: Int) -> Bool {
         guard assistantCount > 0 else { return true }
