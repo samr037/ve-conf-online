@@ -103,4 +103,11 @@ import Testing
         #expect(battery == 1)
         #expect(out.raw(batteryCapacityID) == 321)
     }
+
+    /// What an assistant leaves behind when removed (audit: removing ESS does not mention the settings it forced).
+    @Test func essManagedSettings() throws {
+        let ess = try #require(try assistantLibrary().latest.first { $0.baseName == "ESS" })
+        #expect(AssistantComposer.managedSettings(of: ess) == ["eestBatteryCapacity_VEC", "_AssistEnabled_VEC", "_LithiumBattery_VEC",
+                                                             "_TakeGeneratorDelayIntoAccount_VEC", "_EnableReducedFloat_VEC"])
+    }
 }

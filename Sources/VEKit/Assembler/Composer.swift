@@ -151,6 +151,22 @@ public final class AssistantComposer {
         return emptyImage(size: size)
     }
 
+    /// `_VEC` settings an assistant declares it changes (`AddVECSettingToChange` / `ChangeVECSetting` in its
+    /// source), in source order. Removing the assistant leaves them at the values it set.
+    public static func managedSettings(of package: AssistantPackage) -> [String] {
+        guard let source = package.source?.bytes else { return [] }
+        var out: [String] = []
+        for raw in source.split(separator: 0x0A) {
+            let line = String(decoding: raw, as: Latin1.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            for macro in ["AddVECSettingToChange ", "ChangeVECSetting "] {
+                guard let r = line.range(of: macro, options: [.caseInsensitive, .anchored]) else { continue }
+                let name = line[r.upperBound...].prefix { $0 != "," && !$0.isWhitespace }
+                if name.hasSuffix("_VEC"), !out.contains(String(name)) { out.append(String(name)) }
+            }
+        }
+        return out
+    }
+
     /// Starts the wizard of one assistant (state 5); the others replay their stored answers.
     public func wizard(for assistant: String) -> AssistantWizard { AssistantWizard(composer: self, assistant: assistant) }
 
