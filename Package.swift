@@ -10,7 +10,7 @@ let package = Package(
         // Command-line tool: inspect, assemble and write .rvsc files.
         .executableTarget(name: "vecfg", dependencies: ["VEKit"]),
         // The macOS app.
-        .executableTarget(name: "VEConfigure", dependencies: ["VEKit"]),
+        .executableTarget(name: "VEConfigure", dependencies: ["VEKit"], resources: [.copy("Resources/catalog.json")]),
         .testTarget(name: "VEKitTests", dependencies: ["VEKit"]),
     ]
 )
