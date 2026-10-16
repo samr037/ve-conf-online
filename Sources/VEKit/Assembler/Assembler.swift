@@ -268,8 +268,16 @@ class Assembler: CalculatorHost {
     }
 
     func define(_ rawName: String, _ value: Value?, force: Bool, flags: Int) {
-        guard let value else { return }
+        guard let value else { return }   // e.g. ".SET <unknown>" keeps the old value
+        store(rawName, .value(value), force: force, flags: flags)
+    }
+
+    private enum Assignment { case value(Value), unset }
+
+    /// §5.4 (`FUN_004fa434`): `.unset` is the UNSET marker of `.UNSET`, which goes through the same target selection.
+    private func store(_ rawName: String, _ assignment: Assignment, force: Bool, flags: Int) {
         if let sys = global[rawName], sys.isSystem {
+            guard case .value(let value) = assignment else { report("Cannot remove a system label"); return }
             guard sys.value.map({ $0.sameClass(value) }) ?? true else { report("Expression returns wrong type"); return }
             sys.value = value
             return
@@ -285,7 +293,7 @@ class Assembler: CalculatorHost {
             guard Self.isLegalName(base), !ps.isEmpty, ps.allSatisfy(Self.isLegalName) else {
                 report("Not a legal function defintion (parameter list not correct or expression is not a string)"); return
             }
-            guard value.isString else { report("string expression expected"); return }
+            guard case .value(let value) = assignment, value.isString else { report("string expression expected"); return }
             name = base + "("
             params = ps
         } else if !Self.isLegalName(rawName) {
@@ -309,6 +317,7 @@ class Assembler: CalculatorHost {
             }
         }
         guard let old = target[name] else {
+            guard case .value(let value) = assignment else { return }
             if scope.ext.contains(name) {
                 report(flags & 1 == 0 ? "trying to re-define a non-defined external" : "It is not allowed to define the value of an external")
                 return
@@ -319,6 +328,11 @@ class Assembler: CalculatorHost {
         if force { return }
         if (flags == 0 && old.isFixed) || (flags != 0 && flags != old.flags) {
             report("Labeltype (fixed/variable) different from previous pass"); return
+        }
+        guard case .value(let value) = assignment else {
+            // Only variables get here (UNSET has flags 0, so a fixed label failed the type check above).
+            if target === publics { report("Cannot remove a public or external label") } else { target[name] = nil }
+            return
         }
         if !old.isFixed {
             old.value = value
@@ -427,14 +441,11 @@ class Assembler: CalculatorHost {
         define(line.label, evaluate(line.params[0]), force: force, flags: flags)
     }
 
+    /// `.UNSET` defines the UNSET marker (§5.4): same target as `.SET` (so a macro parameter is an error, unless a
+    /// global variable of that name takes precedence); removing a fixed label is a label-type error.
     private func unset(_ line: SourceLine, _ frame: Frame) {
-        guard needsLabel(line) else { return }
-        if let g = global[line.label], g.isSystem { report("Cannot remove a system label"); return }
-        if let l = lookup(line.label), !l.isFixed {
-            if localNames.contains(line.label) { macroLocals?[line.label] = nil } else if scope.labels[line.label] != nil {
-                scope.labels[line.label] = nil
-            } else { global[line.label] = nil }
-        }
+        guard needsLabel(line), params(line, 0, 0) else { return }
+        store(line.label, .unset, force: false, flags: 0)
     }
 
     private func local(_ line: SourceLine, _ frame: Frame) {
