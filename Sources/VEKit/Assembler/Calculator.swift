@@ -39,6 +39,15 @@ struct CalcError: Error, Equatable {
     static let paramCount = CalcError(message: "Wrong number of parameters")
     static let bounds = CalcError(message: "Index out of bounds")
     static let divZero = CalcError(message: "Division by ZERO")
+    /// Not in VE Configure: guards against runaway recursion (user functions, `val()`, lazy `AND`/`OR`/`XOR`,
+    /// `known()`) that would otherwise overflow the stack.
+    static let tooDeep = CalcError(message: "Expression nesting too deep")
+    /// Not in VE Configure: an expression doing more nested evaluations than any real source needs.
+    static let tooComplex = CalcError(message: "Expression too complex")
+    /// Not in VE Configure: caps the memory one value may take.
+    static let tooLong = CalcError(message: "Result too long")
+    /// Decimal literal above 2^31-1 (UNCERTAIN in VE Configure, where Val's error code is ignored).
+    static let range = CalcError(message: "Range check error")
 }
 
 struct Evaluation {
@@ -53,10 +62,25 @@ final class Calculator {
     /// User-function parameter frames, innermost last; searched before every other list.
     private var frames: [[String: Label]] = []
 
+    /// Nested evaluations (user functions, `val()`, lazy logic, `known()`) are limited in depth and in number.
+    /// The whole library peaks at depth 5 and 48 nested evaluations per expression.
+    static let maxDepth = 256
+    static let maxNestedEvaluations = 10_000
+    /// Longest string or list a calculation may produce.
+    static let maxLength = 16 << 20
+
+    fileprivate var depth = 0
+    fileprivate var nestedEvaluations = 0
+    /// Set once a limit is hit; sticky until the outermost evaluation returns so `known()` cannot swallow it.
+    fileprivate var exhausted: CalcError?
+
     init(host: CalculatorHost) { self.host = host }
 
     /// Evaluates an expression. Errors make the result nil; warnings (Div result is zero!) do not.
     func evaluate(_ text: [UInt8]) -> Evaluation {
+        let outermost = depth == 0
+        if outermost { nestedEvaluations = 0; exhausted = nil }
+        defer { if outermost { exhausted = nil } }
         var run = Run(calc: self)
         let v = run.evaluate(text)
         if let e = run.error { return Evaluation(value: nil, error: e, warnings: run.warnings) }
@@ -120,6 +144,8 @@ private enum Token {
     case close
     case operand(Value)
     case op(Operator)
+    /// A token that matched but cannot be used (out-of-range literal).
+    case invalid(CalcError)
 }
 
 private let builtinsInt = ["int(", "abs(", "sign("]
@@ -191,7 +217,7 @@ private struct Run {
                 let isWord = text.first!.isLetter
                 if isWord ? matchesCI(s, i, text) : matchesExact(s, i, text) { offer(text.utf8.count) { .op(op) } }
             }
-            if let (len, v) = intLiteral(s, i) { offer(len) { .operand(.int(v)) } }
+            if let (len, v) = intLiteral(s, i) { offer(len) { v.map { .operand(.int($0)) } ?? .invalid(.range) } }
             if matchesCI(s, i, "true") { offer(4) { .operand(.bool(true)) } }
             if matchesCI(s, i, "false") { offer(5) { .operand(.bool(false)) } }
             for b in builtinsInt where matchesCI(s, i, b) { offer(b.utf8.count) { .open(.builtin(b)) } }
@@ -222,13 +248,15 @@ private struct Run {
                 return nil
             }
             guard let t = make() else { fail("label has no value"); return nil }
+            if case .invalid(let e) = t { fail(e); return nil }
             tokens.append(t)
             i += len
         }
         return tokens
     }
 
-    func intLiteral(_ s: [UInt8], _ i: Int) -> (Int, Int32)? {
+    /// Length and value of an integer literal; the value is nil for a decimal literal above 2^31-1.
+    func intLiteral(_ s: [UInt8], _ i: Int) -> (Int, Int32?)? {
         guard i < s.count, isDigit(s[i]) else { return nil }
         if s[i] == 0x30, i + 1 < s.count, s[i + 1] == 0x78 {   // 0x (case-sensitive)
             var j = i + 2, v: UInt64 = 0
@@ -240,9 +268,14 @@ private struct Run {
             while j < s.count, s[j] == 0x30 || s[j] == 0x31 { v = (v << 1 | UInt64(s[j] - 0x30)) & 0xFFFF_FFFF; j += 1 }
             if j > i + 2 { return (j - i, Int32(bitPattern: UInt32(v))) }
         }
+        // Delphi Val reports an overflow that VE Configure ignores (the value is then unspecified, UNCERTAIN, and no
+        // shipped source has such a literal): treat it as a range error rather than silently wrapping.
         var j = i, v: Int64 = 0
-        while j < s.count, isDigit(s[j]) { v = v &* 10 &+ Int64(s[j] - 0x30); j += 1 }
-        return (j - i, Int32(truncatingIfNeeded: v))
+        while j < s.count, isDigit(s[j]) {
+            if v <= Int64(Int32.max) { v = v * 10 + Int64(s[j] - 0x30) }
+            j += 1
+        }
+        return (j - i, v <= Int64(Int32.max) ? Int32(v) : nil)
     }
 
     func stringLiteral(_ s: [UInt8], _ start: Int) -> (Int, [UInt8])? {
@@ -364,6 +397,8 @@ private struct Run {
                     ops.append((op, true))
                     prev = .monadic
                 }
+            case .invalid(let e):
+                fail(e); return nil
             }
         }
         guard opens.isEmpty, operands.count == 1 else { fail("bracket open/close mismatch"); return nil }
@@ -412,7 +447,9 @@ private struct Run {
             }
         case (.string(let x), .string(let y)):
             switch op.id {
-            case .add: return .string(x + y)
+            case .add:
+                guard x.count + y.count <= Calculator.maxLength else { fail(.tooLong); return nil }
+                return .string(x + y)
             case .eq: return .bool(x == y)
             case .ne: return .bool(x != y)
             case .lt: return .bool(x.lexicographicallyPrecedes(y))
@@ -421,10 +458,14 @@ private struct Run {
             case .ge: return .bool(!x.lexicographicallyPrecedes(y))
             default: fail(.dyadic); return nil
             }
-        case (.list(let x), _) where op.id == .add: return .list(x + [b])
+        case (.list(let x), _) where op.id == .add:
+            guard x.count < Calculator.maxLength else { fail(.tooLong); return nil }
+            return .list(x + [b])
         case (.list(let x), .list(let y)):
             switch op.id {
-            case .and: return .list(x + y)
+            case .and:
+                guard x.count + y.count <= Calculator.maxLength else { fail(.tooLong); return nil }
+                return .list(x + y)
             case .eq: return .bool(x == y)
             case .ne: return .bool(x != y)
             default: fail(.dyadic); return nil
@@ -495,11 +536,25 @@ private struct Run {
 
     /// Evaluates a nested expression in the same scope; its errors propagate.
     mutating func sub(_ text: [UInt8]) -> Value? {
-        var inner = Run(calc: calc)
-        let v = inner.evaluate(text)
+        guard let (v, inner) = nested(text) else { return nil }
         warnings += inner.warnings
         if let e = inner.error { fail(e); return nil }
         return v
+    }
+
+    /// Runs a nested evaluation within the depth and count limits; nil (with the limit error) when one is hit.
+    mutating func nested(_ text: [UInt8]) -> (Value?, Run)? {
+        if let e = calc.exhausted { fail(e); return nil }
+        calc.nestedEvaluations += 1
+        if calc.depth >= Calculator.maxDepth { calc.exhausted = .tooDeep }
+        if calc.nestedEvaluations > Calculator.maxNestedEvaluations { calc.exhausted = .tooComplex }
+        if let e = calc.exhausted { fail(e); return nil }
+        calc.depth += 1
+        defer { calc.depth -= 1 }
+        var inner = Run(calc: calc)
+        let v = inner.evaluate(text)
+        if let e = calc.exhausted { fail(e); return nil }
+        return (v, inner)
     }
 
     // MARK: Functions
@@ -572,29 +627,31 @@ private struct Run {
             }
         case "copy(":
             guard arity(3) else { return nil }
-            guard case .int(var i) = a[1], case .int(var n) = a[2] else { fail(.paramType); return nil }
+            guard case .int(let i32) = a[1], case .int(let n32) = a[2] else { fail(.paramType); return nil }
+            var i = Int(i32), n = Int(n32)   // Int: the clipping below cannot overflow
             switch a[0] {
             case .string(let s):
                 if i < 1 { n -= 1 - i; i = 1 }
-                let start = Int(i) - 1
+                let start = i - 1
                 guard n > 0, start < s.count else { return .string([]) }
-                return .string(Array(s[start..<min(s.count, start + Int(n))]))
+                return .string(Array(s[start..<min(s.count, start + n)]))
             case .list(let l):
-                let lo = max(0, Int(i)), hi = min(l.count, Int(i) + Int(n))
+                let lo = max(0, i), hi = min(l.count, i + n)
                 return .list(lo < hi ? Array(l[lo..<hi]) : [])
             default: fail(.paramType); return nil
             }
         case "del(":
             guard arity(3) else { return nil }
-            guard case .int(var i) = a[1], case .int(var n) = a[2] else { fail(.paramType); return nil }
+            guard case .int(let i32) = a[1], case .int(let n32) = a[2] else { fail(.paramType); return nil }
+            var i = Int(i32), n = Int(n32)
             switch a[0] {
             case .string(var s):
                 if i < 1 { n -= 1 - i; i = 1 }
-                let start = Int(i) - 1
-                if n > 0 && start < s.count { s.removeSubrange(start..<min(s.count, start + Int(n))) }
+                let start = i - 1
+                if n > 0 && start < s.count { s.removeSubrange(start..<min(s.count, start + n)) }
                 return .string(s)
             case .list(var l):
-                let lo = max(0, Int(i)), hi = min(l.count, Int(i) + Int(n))
+                let lo = max(0, i), hi = min(l.count, i + n)
                 if lo < hi { l.removeSubrange(lo..<hi) }
                 return .list(l)
             default: fail(.paramType); return nil
@@ -605,10 +662,12 @@ private struct Run {
             switch (a[0], a[1]) {
             case (.string(var s), .string(let y)):
                 guard i >= 1, Int(i) <= s.count + 1 else { fail(.bounds); return nil }
+                guard s.count + y.count <= Calculator.maxLength else { fail(.tooLong); return nil }
                 s.insert(contentsOf: y, at: Int(i) - 1)
                 return .string(s)
             case (.list(var l), let y):
                 guard i >= 0, Int(i) <= l.count else { fail(.bounds); return nil }
+                guard l.count < Calculator.maxLength else { fail(.tooLong); return nil }
                 l.insert(y, at: Int(i))
                 return .list(l)
             default: fail(.paramType); return nil
@@ -631,7 +690,9 @@ private struct Run {
             return .int(Int32(s[0]))
         case "str(":
             guard arity(1) else { return nil }
-            return .string(a[0].asText)
+            // Lists can share sub-lists, so their text can be exponentially longer than their memory.
+            guard let t = a[0].asText(limit: Calculator.maxLength) else { fail(.tooLong); return nil }
+            return .string(t)
         case "val(":
             guard arity(1, 2) else { return nil }
             guard case .string(let s) = a[0] else { fail(.paramType); return nil }
@@ -649,8 +710,7 @@ private struct Run {
         case "known(":
             guard arity(1) else { return nil }
             guard case .string(let s) = a[0] else { fail(.paramType); return nil }
-            var inner = Run(calc: calc)
-            let v = inner.evaluate(s)
+            guard let (v, inner) = nested(s) else { return nil }
             return .bool(v != nil && inner.error == nil)
         case "err(":
             guard arity(2) else { return nil }
@@ -661,6 +721,9 @@ private struct Run {
             guard arity(1, 2) else { return nil }
             var digits = 1
             if a.count == 2 { guard case .int(let n) = a[1] else { fail(.paramType); return nil }; digits = Int(n) }
+            // IntToHex pads to `digits`; a 32-bit value never needs more than 8, so a huge count only wastes memory.
+            // Delphi's Format caps integer precision at 32 (UNCERTAIN; hex( is unused in the sources).
+            digits = min(digits, 32)
             switch a[0] {
             case .int(let x):
                 var h = String(UInt32(bitPattern: x), radix: 16, uppercase: true)
