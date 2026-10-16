@@ -21391,7 +21391,7 @@
               "grid.poland.lfsmo"
              ],
              "enabledWhen": [
-              "ctl.PolandFStart_raw != 255"
+              "raw(ctl.PolandFStart) != 255"
              ]
             },
             {
@@ -36056,7 +36056,7 @@
    "targets": [
     "PolandLFSMOGroupBox"
    ],
-   "expr": "ctl.PolandFStart_raw != 255",
+   "expr": "raw(ctl.PolandFStart) != 255",
    "message": null,
    "handler": "PolandFStartPeerDataSet@00551ce0",
    "uncertain": false,

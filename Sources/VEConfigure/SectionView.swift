@@ -154,8 +154,9 @@ enum SectionPages {
         row.ancestors.allSatisfy { Visibility.isVisible($0, ctx) } && Visibility.isVisible(row.control, ctx)
     }
 
+    /// Enable rules that cannot be evaluated offline disable the control (fail closed).
     static func isEnabled(_ row: LayoutRow, page: String, _ ctx: RuleContext) -> Bool {
-        row.ancestors.allSatisfy { ctx.all($0.enabledWhen) } && ctx.all(row.control.enabledWhen)
+        row.ancestors.allSatisfy { ctx.all($0.enabledWhen, unknownIs: false) } && ctx.all(row.control.enabledWhen, unknownIs: false)
             && Visibility.extraEnabled(row.control, page: Catalog.shared.pageOfControl[row.control.name] == "ChargerSheet" ? "ChargerSheet" : page, ctx)
     }
 }
