@@ -9,10 +9,8 @@ public struct WizardText: Sendable {
 
     public init(_ bytes: [UInt8]) {
         var current: String? = nil
-        // Split on bytes: in Swift "\r\n" is a single Character, so String splitting on "\n" would miss it.
-        for rawLine in bytes.split(separator: 0x0A, omittingEmptySubsequences: false) {
-            var lineBytes = Array(rawLine)
-            if lineBytes.last == 0x0D { lineBytes.removeLast() }
+        // Split on bytes (in Swift "\r\n" is a single Character), like Delphi TStrings: CR, LF or CRLF.
+        for lineBytes in TextLines.split(bytes) {
             let line = String(decoding: lineBytes, as: Latin1.self)
             if line.isEmpty || line.hasPrefix(";") { continue }
             if line.hasPrefix("#") {

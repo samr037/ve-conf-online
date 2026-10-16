@@ -37,7 +37,9 @@ final class Frame {
     let path: String
     var index = 0
     var conditions: [Character] = []
-    var whiles: [(line: Int, k: Int)] = []
+    /// Active `.WHILE`s: line and iteration, and the list holding the `.WHILE` (an `.INSERT`ed list shares the
+    /// stacks of its includer, so an `.ENDW` can meet a `.WHILE` of another list).
+    var whiles: [(line: Int, k: Int, list: ObjectIdentifier)] = []
     var pendingWhile: [Int: Int] = [:]
 
     init(list: LineList, path: String) {
@@ -76,6 +78,23 @@ class Assembler: CalculatorHost {
     var globalDepth = 0
     var globalMacros: [String: Macro] = [:]
     var macroDepth = 0
+    /// Active `.SOURCE` / `.INSERT` / `.ASSEMBLE` nesting.
+    var includeDepth = 0
+    /// Lines processed in this assembly (all passes), against `lineBudget`.
+    var linesProcessed = 0
+    var lineBudget = Assembler.maxLines
+
+    // Limits that VE Configure does not have; they turn hostile sources into errors instead of crashes or hangs.
+    /// `.SOURCE` / `.INSERT` / `.ASSEMBLE` nesting (a file including itself would otherwise recurse forever).
+    /// The library nests 3 deep at most.
+    static let maxIncludeDepth = 255
+    /// Highest `$` a DATA may write to. The device holds 4 KB; this only bounds memory.
+    static let maxCodeSize = 1 << 20
+    /// Lines processed per assembly: nested `.WHILE` loops each allowed 1024 iterations multiply. The largest
+    /// library assistant processes about 110 000 lines (both passes, framework included).
+    static let maxLines = 4_000_000
+    /// Stack for the assembly thread: macro, include and calculator nesting are all recursive.
+    static let stackSize = 256 << 20
 
     private(set) var pass = 0
     var stopped = false
@@ -97,6 +116,30 @@ class Assembler: CalculatorHost {
     /// Two passes over the root list. Returns the emitted bytes ($CODE) of the last pass.
     @discardableResult
     func assemble(root: LineList, passes: Int = 2) -> Bool {
+        var ok = false
+        Self.withLargeStack { ok = self.runPasses(root: root, passes: passes) }
+        return ok
+    }
+
+    /// Runs `body` on a thread with a stack deep enough for the nesting limits (the 512 KB of a secondary thread
+    /// holds only a few dozen nested macro or function levels in a debug build), and waits for it.
+    static func withLargeStack(_ body: () -> Void) {
+        if Thread.current.stackSize >= stackSize { body(); return }
+        final class Box: @unchecked Sendable { var body: (() -> Void)? }
+        withoutActuallyEscaping(body) { body in
+            let box = Box()
+            box.body = body
+            let done = DispatchSemaphore(value: 0)
+            let thread = Thread { box.body?(); done.signal() }
+            thread.stackSize = stackSize
+            thread.start()
+            done.wait()
+            box.body = nil
+        }
+    }
+
+    private func runPasses(root: LineList, passes: Int) -> Bool {
+        linesProcessed = 0
         for p in 1...passes {
             reset(firstPass: p == 1)
             pass = p
@@ -123,6 +166,7 @@ class Assembler: CalculatorHost {
         globalDepth = 0
         globalMacros = [:]
         macroDepth = 0
+        includeDepth = 0
         frameLabels = nil
         macroLocals = nil
         localNames = []
@@ -159,6 +203,11 @@ class Assembler: CalculatorHost {
     }
 
     func process(_ line: SourceLine, in frame: Frame) {
+        linesProcessed += 1
+        if linesProcessed > lineBudget {
+            report("Assembly stopped: more than \(lineBudget) lines processed (runaway .WHILE loops?)", fatal: true)
+            return
+        }
         if let e = line.error { report(e); return }
         let op = line.opcode.lowercased()
         if let handler = directive(op) {
@@ -221,8 +270,16 @@ class Assembler: CalculatorHost {
     }
 
     func define(_ rawName: String, _ value: Value?, force: Bool, flags: Int) {
-        guard let value else { return }
+        guard let value else { return }   // e.g. ".SET <unknown>" keeps the old value
+        store(rawName, .value(value), force: force, flags: flags)
+    }
+
+    private enum Assignment { case value(Value), unset }
+
+    /// §5.4 (`FUN_004fa434`): `.unset` is the UNSET marker of `.UNSET`, which goes through the same target selection.
+    private func store(_ rawName: String, _ assignment: Assignment, force: Bool, flags: Int) {
         if let sys = global[rawName], sys.isSystem {
+            guard case .value(let value) = assignment else { report("Cannot remove a system label"); return }
             guard sys.value.map({ $0.sameClass(value) }) ?? true else { report("Expression returns wrong type"); return }
             sys.value = value
             return
@@ -238,7 +295,7 @@ class Assembler: CalculatorHost {
             guard Self.isLegalName(base), !ps.isEmpty, ps.allSatisfy(Self.isLegalName) else {
                 report("Not a legal function defintion (parameter list not correct or expression is not a string)"); return
             }
-            guard value.isString else { report("string expression expected"); return }
+            guard case .value(let value) = assignment, value.isString else { report("string expression expected"); return }
             name = base + "("
             params = ps
         } else if !Self.isLegalName(rawName) {
@@ -262,6 +319,7 @@ class Assembler: CalculatorHost {
             }
         }
         guard let old = target[name] else {
+            guard case .value(let value) = assignment else { return }
             if scope.ext.contains(name) {
                 report(flags & 1 == 0 ? "trying to re-define a non-defined external" : "It is not allowed to define the value of an external")
                 return
@@ -272,6 +330,11 @@ class Assembler: CalculatorHost {
         if force { return }
         if (flags == 0 && old.isFixed) || (flags != 0 && flags != old.flags) {
             report("Labeltype (fixed/variable) different from previous pass"); return
+        }
+        guard case .value(let value) = assignment else {
+            // Only variables get here (UNSET has flags 0, so a fixed label failed the type check above).
+            if target === publics { report("Cannot remove a public or external label") } else { target[name] = nil }
+            return
         }
         if !old.isFixed {
             old.value = value
@@ -293,6 +356,11 @@ class Assembler: CalculatorHost {
               case .string(var code)? = codeLabel.value, case .int(let loc)? = locLabel.value else { return }
         codeLabel.value = nil   // release the buffer so the append below does not copy it
         let at = Int(loc)
+        guard at < Self.maxCodeSize else {
+            codeLabel.value = .string(code)
+            report("location counter $ beyond the \(Self.maxCodeSize / 1024) KB code limit", fatal: true)
+            return
+        }
         if at >= 0 {
             if code.count <= at { code += [UInt8](repeating: 0xFF, count: at + 1 - code.count) }
             code[at] = byte
@@ -375,14 +443,11 @@ class Assembler: CalculatorHost {
         define(line.label, evaluate(line.params[0]), force: force, flags: flags)
     }
 
+    /// `.UNSET` defines the UNSET marker (§5.4): same target as `.SET` (so a macro parameter is an error, unless a
+    /// global variable of that name takes precedence); removing a fixed label is a label-type error.
     private func unset(_ line: SourceLine, _ frame: Frame) {
-        guard needsLabel(line) else { return }
-        if let g = global[line.label], g.isSystem { report("Cannot remove a system label"); return }
-        if let l = lookup(line.label), !l.isFixed {
-            if localNames.contains(line.label) { macroLocals?[line.label] = nil } else if scope.labels[line.label] != nil {
-                scope.labels[line.label] = nil
-            } else { global[line.label] = nil }
-        }
+        guard needsLabel(line), params(line, 0, 0) else { return }
+        store(line.label, .unset, force: false, flags: 0)
     }
 
     private func local(_ line: SourceLine, _ frame: Frame) {
@@ -423,6 +488,8 @@ class Assembler: CalculatorHost {
         codeLabel(line)
         guard params(line, 1, 1) else { return }
         guard case .string(let text)? = evaluate(line.params[0]) else { report("string expression expected"); return }
+        guard enterInclude() else { return }
+        defer { includeDepth -= 1 }
         process(SourceLine(text), in: frame)
     }
 
@@ -431,6 +498,8 @@ class Assembler: CalculatorHost {
         guard params(line, 1, 1), case .string(let nameBytes)? = evaluate(line.params[0]) else { return }
         let name = String(decoding: nameBytes, as: Latin1.self)
         guard let text = sourceProvider(name) else { report("Cannot open file"); return }
+        guard enterInclude() else { return }
+        defer { includeDepth -= 1 }
         let list = LineList(header: name, text: text)
         if newScope {
             let saved = (frameLabels, macroLocals, localNames, scope)
@@ -440,8 +509,11 @@ class Assembler: CalculatorHost {
             didLeaveSource(name)
             (frameLabels, macroLocals, localNames, scope) = saved
         } else {
-            // .INSERT shares the current scope; conditionals are tracked by the inserted list itself.
+            // .INSERT shares the current scope and its conditional stack (§6): a block may open in the includer and
+            // close in the inserted file or the other way round. Skip mode still stops at the end of each list.
             let inserted = Frame(list: list, path: frame.site + "+" + name)
+            inserted.conditions = frame.conditions
+            inserted.whiles = frame.whiles
             let saved = currentFrame
             currentFrame = inserted
             while !stopped {
@@ -450,7 +522,19 @@ class Assembler: CalculatorHost {
                 process(list.line(inserted.index), in: inserted)
             }
             currentFrame = saved
+            frame.conditions = inserted.conditions
+            frame.whiles = inserted.whiles
         }
+    }
+
+    /// Counts one more `.SOURCE` / `.INSERT` / `.ASSEMBLE` level; false (after a fatal error) past the limit.
+    private func enterInclude() -> Bool {
+        guard includeDepth < Self.maxIncludeDepth else {
+            report("nesting too deep (.SOURCE / .INSERT / .ASSEMBLE more than \(Self.maxIncludeDepth) levels)", fatal: true)
+            return false
+        }
+        includeDepth += 1
+        return true
     }
 
     func willEnterSource(_ name: String) {}
@@ -528,7 +612,7 @@ class Assembler: CalculatorHost {
         }
         if truth {
             frame.conditions.append("w")
-            frame.whiles.append((frame.index, k))
+            frame.whiles.append((frame.index, k, ObjectIdentifier(frame.list)))
         } else if let (_, j) = skip(frame, forWhile: true, acceptElse: false) {
             frame.index = j
         } else {
@@ -539,6 +623,7 @@ class Assembler: CalculatorHost {
     private func endw(_ line: SourceLine, _ frame: Frame) {
         guard frame.conditions.last == "w", let w = frame.whiles.popLast() else { report("unexpected .ENDW"); return }
         frame.conditions.removeLast()
+        guard w.list == ObjectIdentifier(frame.list) else { report("internal error with while construction"); return }
         if w.k <= 1024 {
             frame.pendingWhile[w.line] = w.k + 1
             frame.index = w.line - 1
