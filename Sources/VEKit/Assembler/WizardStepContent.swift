@@ -34,8 +34,9 @@ public struct WizardStepContent: Equatable, Sendable {
     public init(step: AssistantStepDefinition, text: WizardText?, format: [Value]) {
         var section: WizardStepText?
         if step.stepName.caseInsensitiveCompare("Generic") == .orderedSame, let last = format.last {
-            // Generic steps carry their whole text as the last format argument.
-            let raw = Self.format(last.plainText, format)
+            // Generic steps carry their whole text as the last format argument, inserted as is
+            // (`Format('%<last>:s', args)`, §12.3); its lines are then formatted once like any section's.
+            let raw = last.plainText
             section = WizardStepText(lines: raw.components(separatedBy: CharacterSet.newlines).filter { !$0.isEmpty })
         } else {
             section = text?.step(step.stepName)
@@ -55,30 +56,96 @@ public struct WizardStepContent: Equatable, Sendable {
 
     // MARK: Delphi Format
 
+    /// Delphi `Format`: `%[index:][-][width][.prec]type` (index, width and prec may be `*`), for d u x s f n and
+    /// the sources' unknown `k` (shown like `s`). Delphi raises on a bad specifier, a missing argument or a type
+    /// mismatch; a wizard text must still display, so a bad specifier is copied as is, a missing argument is
+    /// empty, and a mismatched argument is shown as text.
     static func format(_ s: String, _ args: [Value]) -> String {
+        let c = Array(s)
         var out = ""
-        var i = s.startIndex
-        var sequential = 0
-        while i < s.endIndex {
-            let c = s[i]
-            guard c == "%" else { out.append(c); i = s.index(after: i); continue }
-            var j = s.index(after: i)
-            if j < s.endIndex, s[j] == "%" { out.append("%"); i = s.index(after: j); continue }
-            var digits = ""
-            while j < s.endIndex, s[j].isNumber { digits.append(s[j]); j = s.index(after: j) }
-            var index = sequential
-            if j < s.endIndex, s[j] == ":", let n = Int(digits) {
-                index = n
-                j = s.index(after: j)
-            } else if !digits.isEmpty {
-                // width without index (rare): ignore it
+        var i = 0
+        var next = 0   // sequential argument index
+        /// Digits or `*` at `j`; nil when the number does not fit an Int32 (Delphi's integer) or `*` has no int.
+        func number(_ j: inout Int) -> Int?? {
+            if j < c.count, c[j] == "*" {
+                j += 1
+                defer { next += 1 }
+                guard next < args.count, case .int(let v) = args[next] else { return .some(nil) }
+                return .some(Int(v))
             }
-            guard j < s.endIndex, "sdkxSDKX".contains(s[j]) else { out.append(c); i = s.index(after: i); continue }
-            out += index < args.count ? args[index].plainText : ""
-            sequential = index + 1
-            i = s.index(after: j)
+            var v = 0, any = false
+            while j < c.count, let d = c[j].asciiDigit {
+                v = v * 10 + d
+                any = true
+                j += 1
+                if v > Int(Int32.max) { return .some(nil) }
+            }
+            return any ? .some(v) : nil
+        }
+        while i < c.count {
+            guard c[i] == "%" else { out.append(c[i]); i += 1; continue }
+            if i + 1 < c.count, c[i + 1] == "%" { out.append("%"); i += 2; continue }
+            var j = i + 1
+            var valid = true
+            var index: Int? = nil
+            var width: Int? = nil
+            var precision: Int? = nil
+            var leftAlign = false
+            var first = number(&j)
+            if j < c.count, c[j] == ":" {
+                j += 1
+                if case .some(let n) = first { if let n { index = n } else { valid = false } } else { index = 0 }
+                first = nil
+            }
+            if case .some = first {} else if j < c.count, c[j] == "-" { leftAlign = true; j += 1 }
+            if case .some(let n) = first { if let n { width = n } else { valid = false } } else if case .some(let n) = number(&j) {
+                if let n { width = n } else { valid = false }
+            }
+            if j < c.count, c[j] == "." {
+                j += 1
+                if case .some(let n) = number(&j) { if let n { precision = n } else { valid = false } } else { precision = 0 }
+            }
+            guard valid, j < c.count, let type = c[j].lowercased().first, "duxsfnk".contains(type) else {
+                out.append("%"); i += 1; continue
+            }
+            if let index { next = index }
+            let arg = next < args.count ? args[next] : nil
+            next += 1
+            var text = arg.map { formatted($0, type: type, precision: precision) } ?? ""
+            // Delphi pads to any width; a hostile text must not allocate gigabytes.
+            let w = min(width ?? 0, 4096)
+            if text.count < w {
+                let pad = String(repeating: " ", count: w - text.count)
+                text = leftAlign ? text + pad : pad + text
+            }
+            out += text
+            i = j + 1
         }
         return out
+    }
+
+    private static func formatted(_ v: Value, type: Character, precision: Int?) -> String {
+        let p = precision.map { min($0, 64) }
+        switch (type, v) {
+        case ("d", .int(let n)):
+            let digits = String(Int(n).magnitude)
+            return (n < 0 ? "-" : "") + String(repeating: "0", count: max(0, (p ?? 0) - digits.count)) + digits
+        case ("u", .int(let n)):
+            let digits = String(UInt32(bitPattern: n))
+            return String(repeating: "0", count: max(0, (p ?? 0) - digits.count)) + digits
+        case ("x", .int(let n)):
+            let digits = String(UInt32(bitPattern: n), radix: 16, uppercase: true)
+            return String(repeating: "0", count: max(0, (p ?? 0) - digits.count)) + digits
+        case ("f", .int(let n)), ("n", .int(let n)):
+            var style = FloatingPointFormatStyle<Double>.number.precision(.fractionLength(p ?? 2))
+            if type == "f" { style = style.grouping(.never) }
+            return Double(n).formatted(style)
+        case ("s", _), ("k", _):
+            let t = v.plainText
+            return p.map { String(t.prefix($0)) } ?? t
+        default:
+            return v.plainText
+        }
     }
 
     // MARK: Inline codes
@@ -183,41 +250,85 @@ extension Value {
 }
 
 extension AssistantStepDefinition.Field {
-    /// Display text of a raw answer for this field (decimals scaled by 10^P, times as hh:mm).
+    /// Display text of a raw answer for this field (decimals scaled by 10^P, times as [-]hh:mm). No grouping
+    /// separator, so the text reads back with `parse`.
     public func display(_ raw: Int32) -> String {
         switch precision {
         case .decimals(let d):
             guard d > 0 else { return String(raw) }
             let p = pow(10.0, Double(d))
-            return (Double(raw) / p).formatted(.number.precision(.fractionLength(d)))
-        case .time: return String(format: "%02d:%02d", raw / 60, raw % 60)
+            return (Double(raw) / p).formatted(.number.precision(.fractionLength(d)).grouping(.never))
+        case .time:
+            let r = Int(raw)
+            return (r < 0 ? "-" : "") + String(format: "%02d:%02d", abs(r) / 60, abs(r) % 60)
         case .list: return String(raw)
         }
     }
 
-    /// Parses user input back to a raw value (nil when not a number), clamped to the field range.
+    /// Parses user input back to a raw value, clamped to the field range; nil when not a plain number (or time).
+    /// Accepts `,` or `.` as the decimal mark and ignores grouping (spaces, no-break spaces, `'`, or the other mark).
     public func parse(_ text: String) -> Int32? {
-        let t = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
         var raw: Double
         switch precision {
         case .time:
-            let parts = t.split(separator: ":")
-            guard parts.count == 2, let h = Int(parts[0]), let m = Int(parts[1]) else { return nil }
-            raw = Double(h * 60 + m)
+            let t = text.trimmingCharacters(in: .whitespaces)
+            let parts = t.split(separator: ":", omittingEmptySubsequences: false)
+            guard parts.count == 2, let h = Self.plainNumber(String(parts[0]), signed: true),
+                  let m = Self.plainNumber(String(parts[1]), signed: false) else { return nil }
+            // The sign applies to the whole time: -1:30 is -90 minutes.
+            let negative = parts[0].hasPrefix("-")
+            raw = (h.magnitude * 60 + m) * (negative ? -1 : 1)
         case .decimals(let d):
-            guard let v = Double(t) else { return nil }
+            guard let v = Self.number(text) else { return nil }
             raw = (v * pow(10.0, Double(d))).rounded()
         case .list:
-            guard let v = Double(t) else { return nil }
-            raw = v
+            guard let v = Self.number(text) else { return nil }
+            raw = v.rounded()
         }
+        guard raw.isFinite else { return nil }
         return Int32(Swift.min(Swift.max(raw, Double(min)), Double(max)))
+    }
+
+    /// A decimal number with an optional sign, tolerant of grouping; nil for anything else (nan, inf, hex, exponents).
+    static func number(_ text: String) -> Double? {
+        var t = String(text.unicodeScalars.filter { !CharacterSet.whitespaces.contains($0) && $0 != "'" && $0 != "\u{2019}" })
+        let comma = t.lastIndex(of: ","), dot = t.lastIndex(of: ".")
+        let commas = t.filter { $0 == "," }.count, dots = t.filter { $0 == "." }.count
+        switch (comma, dot) {
+        case let (c?, d?):   // both: the last one is the decimal mark, the other groups
+            let (group, mark): (Character, Character) = c > d ? (".", ",") : (",", ".")
+            if t.filter({ $0 == mark }).count > 1 { return nil }
+            t.removeAll { $0 == group }
+            t = t.replacingOccurrences(of: String(mark), with: ".")
+        case (_?, nil):
+            t = commas > 1 ? t.replacingOccurrences(of: ",", with: "") : t.replacingOccurrences(of: ",", with: ".")
+        case (nil, _?):
+            if dots > 1 { t = t.replacingOccurrences(of: ".", with: "") }
+        case (nil, nil): break
+        }
+        return plainNumber(t, signed: true, fraction: true)
+    }
+
+    /// `[sign]digits[.digits]` only; nil otherwise or when not finite.
+    static func plainNumber(_ t: String, signed: Bool, fraction: Bool = false) -> Double? {
+        var body = Substring(t)
+        if signed, let f = body.first, f == "-" || f == "+" { body = body.dropFirst() }
+        let parts = body.split(separator: ".", omittingEmptySubsequences: false)
+        guard !body.isEmpty, parts.count <= (fraction ? 2 : 1),
+              parts.allSatisfy({ $0.allSatisfy { $0.isASCII && $0.isNumber } }),
+              parts.contains(where: { !$0.isEmpty }) else { return nil }
+        guard let v = Double(t), v.isFinite else { return nil }
+        return v
     }
 
     public var step: Double {
         if case .decimals(let d) = precision { return pow(10.0, -Double(d)) }
         return 1
     }
+}
+
+extension Character {
+    var asciiDigit: Int? { isASCII ? wholeNumberValue : nil }
 }
 
 extension String {
