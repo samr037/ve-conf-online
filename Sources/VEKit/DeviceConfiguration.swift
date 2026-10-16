@@ -40,9 +40,16 @@ public struct DeviceSettingInfo: Equatable, Sendable {
     init(body: [UInt8]) throws {
         var r = ByteReader(body)
         version = try r.u32()
+        guard version < 5 else { throw FormatError.unsupportedVersion(section: "BareSettingInfo", version: version) }
         firmware = try r.u32()
         configResponseChar = try r.u8()
         let n = Int(try r.u16())
+        guard n % 10 == 0 else {
+            throw FormatError.malformed("BareSettingInfo: setting records are \(n) bytes, not a multiple of 10.")
+        }
+        guard n / 10 <= DeviceSettingData.maxValues else {
+            throw FormatError.malformed("BareSettingInfo: \(n / 10) setting records, at most \(DeviceSettingData.maxValues) exist.")
+        }
         let recs = try r.bytes(n)
         var records: [SettingInfo] = []
         var rr = ByteReader(recs)
@@ -109,9 +116,15 @@ public struct DeviceSettingData: Equatable, Sendable {
     /// Original RLE token boundaries, so an untouched memory image re-encodes byte for byte.
     var rleTokens: [RLE.Token]?
 
+    /// VE Configure reads at most 0x180 bytes of values (settings 0…191) and skips the rest.
+    public static let maxValues = 192
+    /// Size of the assistant program memory of every VE.Bus device.
+    public static let assistantMemorySize = 4096
+
     init(body: [UInt8]) throws {
         var r = ByteReader(body)
         version = try r.u32()
+        guard version < 4 else { throw FormatError.unsupportedVersion(section: "BareSettingData", version: version) }
         deviceID = try r.u32()
         firmwareAlt = try r.u32()
         if version >= 3 { obj20 = try r.u8(); obj21 = try r.u8() }
@@ -128,9 +141,13 @@ public struct DeviceSettingData: Equatable, Sendable {
             readTime = Int64(bitPattern: UInt64(try r.u32()) | UInt64(try r.u32()) << 32)
         }
         let n = Int(try r.u16())
+        guard n % 2 == 0 else { throw FormatError.malformed("BareSettingData: values are \(n) bytes, not a whole number of words.") }
         var vr = ByteReader(try r.bytes(n))
-        values = try (0..<(n / 2)).map { _ in try vr.u16() }
-        let decoded = try RLE.decode(try r.bytes(r.remaining))
+        values = try (0..<min(n / 2, Self.maxValues)).map { _ in try vr.u16() }
+        let decoded = try RLE.decode(try r.bytes(r.remaining), limit: Self.assistantMemorySize)
+        guard decoded.memory.count == Self.assistantMemorySize else {
+            throw FormatError.malformed("BareSettingData: assistant memory is \(decoded.memory.count) bytes, expected \(Self.assistantMemorySize).")
+        }
         assistantMemory = decoded.memory
         rleTokens = decoded.tokens
     }
@@ -163,7 +180,8 @@ public struct DeviceSettingData: Equatable, Sendable {
 public enum RLE {
     struct Token: Equatable, Sendable { var literal: Int; var fill: UInt8; var count: Int }
 
-    static func decode(_ bytes: [UInt8]) throws -> (memory: [UInt8], tokens: [Token]) {
+    /// Throws as soon as the output would exceed `limit` bytes (a few KB of tokens can claim gigabytes).
+    static func decode(_ bytes: [UInt8], limit: Int = DeviceSettingData.assistantMemorySize) throws -> (memory: [UInt8], tokens: [Token]) {
         var r = ByteReader(bytes)
         var mem: [UInt8] = []
         var tokens: [Token] = []
@@ -171,6 +189,7 @@ public enum RLE {
             let lit = try r.bytes(Int(try r.u16()))
             let fill = try r.u8()
             let count = Int(try r.u16())
+            guard mem.count + lit.count + count <= limit else { throw FormatError.tooLarge("Assistant memory", limit: limit) }
             tokens.append(Token(literal: lit.count, fill: fill, count: count))
             mem += lit + [UInt8](repeating: fill, count: count)
         }
@@ -241,6 +260,17 @@ public struct DeviceConfiguration: Equatable, Sendable {
         info = try DeviceSettingInfo(body: infoBody)
         data = try DeviceSettingData(body: dataBody)
         self.file = file
+        // VE Configure asserts these match (docs/re/02-settings.md §2, §3). Info v<4 stores 3 firmware bytes.
+        guard info.firmware & 0xFF_FFFF == data.firmware & 0xFF_FFFF else {
+            throw FormatError.malformed("Setting info is for firmware \(info.firmware & 0xFF_FFFF) but the values are from firmware \(data.firmware & 0xFF_FFFF).")
+        }
+        guard info.configResponseChar == data.configResponseChar else {
+            throw FormatError.malformed(String(format: "Setting info and values disagree on the device type (ConfigResponseChar 0x%02X vs 0x%02X).",
+                                               info.configResponseChar, data.configResponseChar))
+        }
+        guard data.values.count >= info.records.count else {
+            throw FormatError.malformed("The file has \(info.records.count) setting records but only \(data.values.count) values.")
+        }
     }
 
     public init(contentsOf url: URL) throws {
