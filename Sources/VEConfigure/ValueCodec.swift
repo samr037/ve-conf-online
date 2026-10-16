@@ -361,14 +361,32 @@ struct ValueCodec {
 enum LocalControls {
     static func setting(_ control: String) -> Int? { Catalog.shared.controls[control]?.variable?.index }
 
+    /// The controls whose settings a local control writes when clicked: it inherits their protection, reset mark and
+    /// "changed" state.
+    static func writtenControls(_ name: String) -> [CatalogControl] {
+        let names: [String]
+        switch name {
+        case "EnableBatteryMonitorCheckBox": names = ["BatteryCapacityEdit"]
+        case "EnableLowSOCShutDownCheckBox": names = ["LOWSOCStopSettingEdit", "LOWSOCStartSettingEdit"]
+        case "StopChargeDueToTempCheckBox": names = ["StopChargeBelowTBatSettingEdit"]
+        case "PolandEnableLFSMOCheckbox": return [polandFStart, Catalog.shared.controls["PolandDroopSettingEdit"]].compactMap { $0 }
+        case "Vs2UBatOffActionComboBox": names = ["vs2UBatOffEdit"]
+        default: return []
+        }
+        return names.compactMap { Catalog.shared.controls[$0] }
+    }
+
+    private static var polandFStart: CatalogControl? {
+        Catalog.shared.controls["PolandFStart"] ?? Catalog.shared.controls.values.first { $0.handler("OnPeerDataSet") == "PolandFStartPeerDataSet" }
+    }
+
     static func isChecked(_ name: String, _ c: DeviceConfiguration) -> Bool? {
         switch name {
         case "EnableBatteryMonitorCheckBox": return setting("BatteryCapacityEdit").map { c.raw($0) != 0 }
         case "EnableLowSOCShutDownCheckBox": return setting("LOWSOCStartSettingEdit").map { c.raw($0) != 0 }
         case "StopChargeDueToTempCheckBox": return setting("StopChargeBelowTBatSettingEdit").map { c.raw($0) != 0 }
         case "PolandEnableLFSMOCheckbox":
-            guard let ctl = Catalog.shared.controls["PolandFStartSettingEdit"] ?? Catalog.shared.controls.values.first(where: {
-                $0.handler("OnPeerDataSet") == "PolandFStartPeerDataSet" }), let codec = ValueCodec(control: ctl) else { return nil }
+            guard let ctl = polandFStart, let codec = ValueCodec(control: ctl) else { return nil }
             return codec.raw(c).map { $0 != 255 }
         default: return nil
         }
@@ -398,9 +416,16 @@ enum LocalControls {
                 c.setRaw(id, 0)
             }
         case "PolandEnableLFSMOCheckbox":
-            guard let ctl = Catalog.shared.controls.values.first(where: { $0.handler("OnPeerDataSet") == "PolandFStartPeerDataSet" }),
-                  let codec = ValueCodec(control: ctl) else { return }
-            if on, let d = ctl.peer?.codec.default { codec.setDisplay(d, in: &c) } else { codec.setRaw(255, in: &c) }
+            // PolandEnableLFSMOCheckboxClick @00551da0: checked → PolandFStart and PolandDroop := their defaults;
+            // unchecked → PolandFStart raw := 0xFF (LFSM-O off).
+            guard let ctl = polandFStart, let codec = ValueCodec(control: ctl) else { return }
+            if on {
+                for target in writtenControls(name) {
+                    if let k = ValueCodec(control: target), let d = target.peer?.codec.default { k.setDisplay(d, in: &c) }
+                }
+            } else {
+                codec.setRaw(255, in: &c)
+            }
         default: break
         }
     }

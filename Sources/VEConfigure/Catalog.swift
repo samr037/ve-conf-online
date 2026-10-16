@@ -406,9 +406,10 @@ struct CatalogControl: Decodable {
         return cleanDescription ?? L10n.catalog(staticLabel ?? help?.title)
     }
 
-    /// Settings this control writes (direct variable or grid words).
+    /// Settings this control writes (direct variable, grid words, or for a local control the settings it sets).
     var settingTargets: [Int] {
         if let v = variable, v.kind == .setting, let i = v.index { return [i] }
+        if kind == .localToggle || kind == .localChoice { return LocalControls.writtenControls(name).flatMap(\.settingTargets) }
         return peer?.peers.compactMap { $0.variable?.index } ?? []
     }
 }

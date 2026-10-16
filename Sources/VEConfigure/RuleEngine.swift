@@ -518,6 +518,9 @@ enum Access {
     /// Variables a control writes, as references.
     static func refs(of control: CatalogControl) -> [VariableRef] {
         if let v = control.variable, let i = v.index, let n = v.name { return [VariableRef(kind: v.kind, index: i, name: n)] }
+        if control.kind == .localToggle || control.kind == .localChoice {
+            return LocalControls.writtenControls(control.name).flatMap { refs(of: $0) }
+        }
         return control.peer?.peers.compactMap { p in
             p.variable.flatMap { v in v.index.map { VariableRef(kind: v.kind, index: $0, name: v.name ?? "") } }
         } ?? []
