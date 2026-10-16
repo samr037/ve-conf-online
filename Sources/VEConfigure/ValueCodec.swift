@@ -389,9 +389,12 @@ struct ValueCodec {
         return 3
     }
 
-    func format(_ v: Double, _ c: DeviceConfiguration) -> String {
-        v.formatted(.number.precision(.fractionLength(precision(c))).grouping(.never))
+    func format(_ v: Double, _ c: DeviceConfiguration, extraDecimals: Int = 0) -> String {
+        v.formatted(.number.precision(.fractionLength(precision(c) + extraDecimals)).grouping(.never))
     }
+
+    /// " V", " s"… as displayed (empty when the control has no unit).
+    var unitSuffix: String { Units.display(control.unit).map { " " + $0 } ?? "" }
 
     /// Value as shown in the change list (with unit, or item text for choices).
     func formatted(_ c: DeviceConfiguration, context: RuleContext? = nil) -> String {
@@ -403,7 +406,7 @@ struct ValueCodec {
         if case .flag = binding { return (r != 0) != control.isInverted ? L("On") : L("Off") }
         if control.kind == .toggle { return (r != 0) != control.isInverted ? L("On") : L("Off") }
         guard let v = display(raw: r, c) else { return "\(r)" }
-        return format(v, c) + (control.unit.map { " " + L10n.catalog($0) } ?? "")
+        return format(v, c) + unitSuffix
     }
 }
 

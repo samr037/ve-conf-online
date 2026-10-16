@@ -88,12 +88,36 @@ final class ConfigDocument: ObservableObject, Identifiable {
         registerUndo(actionName) { $0.replace(with: old, actionName: actionName) }
     }
 
-    /// Restores one setting (or flag) to its loaded value — VE Configure's "Restore unmodified value".
+    /// "Restore unmodified value": puts a change back to its loaded value through `edit`, so VE Configure's follow-up
+    /// corrections run. A control spanning several words is restored as a whole; a grid-code change is restored
+    /// together with its parameter and checker words.
     func revert(_ change: Change) {
+        let base = baseline
+        let action = L("Restore %@", change.label)
         switch change.target {
-        case .setting(let id): setRaw(id, baseline.raw(id), actionName: L("Restore %@", change.label))
-        case .flag(let n): setFlag(n, baseline.flag(n), actionName: L("Restore %@", change.label))
-        case .assistants: break
+        case .setting(let id):
+            edit(action, control: Catalog.shared.settingControls[id]?.name) { $0.setRaw(id, base.raw(id)) }
+        case .flag(let n):
+            edit(action, control: Catalog.shared.flagControls[n]?.name) { $0.setFlag(n, base.flag(n)) }
+        case .control(let name):
+            if let ctl = Catalog.shared.controls[name] { restore(control: ctl, actionName: action) }
+        case .gridCode:
+            edit(action, control: "GridCodeComboBox") { c in
+                for id in [81] + Array(128...191) { c.setRaw(id, base.raw(id)) }
+            }
+        case .assistants:
+            break
+        }
+    }
+
+    /// Restores everything one control writes (its bits of shared grid words, all of its words, or the settings a
+    /// local checkbox sets) to the loaded values.
+    func restore(control ctl: CatalogControl, actionName: String) {
+        let base = baseline
+        edit(actionName, control: ctl.name) { c in
+            if let v = ctl.variable, v.kind == .flag, let n = v.index { c.setFlag(n, base.flag(n)); return }
+            if ctl.peer != nil, let k = ValueCodec(control: ctl), let r = k.raw(base) { k.restoreRaw(r, in: &c); return }
+            for id in ctl.settingTargets { c.setRaw(id, base.raw(id)) }
         }
     }
 
@@ -168,7 +192,7 @@ final class ConfigDocument: ObservableObject, Identifiable {
     // MARK: Change list
 
     struct Change: Identifiable, Equatable {
-        enum Target: Hashable { case setting(Int), flag(Int), assistants }
+        enum Target: Hashable { case setting(Int), flag(Int), assistants, control(String), gridCode }
         var target: Target
         var label: String
         var before: String
@@ -178,17 +202,51 @@ final class ConfigDocument: ObservableObject, Identifiable {
 
     var changes: [Change] {
         var out: [Change] = []
-        let flagWords = Set(SettingNames.flagWords)
-        for id in 0..<config.data.values.count where config.raw(id) != baseline.raw(id) && !flagWords.contains(id) {
-            out.append(Change(target: .setting(id), label: Labels.setting(id, in: config),
-                              before: Labels.format(baseline, id), after: Labels.format(config, id)))
+        let skip = Set(SettingNames.flagWords).union([81]).union(128...191)
+        for id in 0..<config.data.values.count where config.raw(id) != baseline.raw(id) && !skip.contains(id) {
+            let (b, a) = Labels.formatPair(baseline, config, id)
+            out.append(Change(target: .setting(id), label: Labels.setting(id, in: config), before: b, after: a))
         }
+        out += gridChanges
         for n in 0..<SettingNames.flags.count where config.flag(n) != baseline.flag(n) {
             out.append(Change(target: .flag(n), label: Labels.flag(n),
                               before: Catalog.shared.formatFlag(n, baseline.flag(n)), after: Catalog.shared.formatFlag(n, config.flag(n))))
         }
         if config.data.assistantMemory != baseline.data.assistantMemory {
             out.append(Change(target: .assistants, label: L("Assistants"), before: "", after: L("Reprogrammed")))
+        }
+        return out
+    }
+
+    /// Grid changes as the user made them: the grid code (one unit with its parameters), else one entry per control
+    /// of the grid pages in physical units, and raw words only for what no control explains.
+    private var gridChanges: [Change] {
+        if config.raw(81) != baseline.raw(81) {
+            let words = (128...191).filter { config.raw($0) != baseline.raw($0) }.count
+            return [Change(target: .gridCode, label: Labels.setting(81, in: config), before: Labels.format(baseline, 81),
+                           after: Labels.format(config, 81) + (words > 0 ? " " + L("(with %d grid parameter words)", words) : ""))]
+        }
+        let changed = (128...191).filter { config.raw($0) != baseline.raw($0) }
+        guard !changed.isEmpty else { return [] }
+        var pages: Set<String> = [GridPages.selectionPage]
+        if let p = GridPages.page(for: config) { pages.insert(p) }
+        if GridPages.showsMicrogrid(config) { pages.insert("MicroGridPage") }
+        var out: [Change] = []
+        var rest = config   // the controls listed put back: what still differs is explained by no control
+        var seen = Set<String>()
+        for id in changed {
+            for ctl in Catalog.shared.peerControlsBySetting[id] ?? [] where !seen.contains(ctl.name) {
+                guard let page = Catalog.shared.pageOfControl[ctl.name], pages.contains(page) || page.hasPrefix("VDE") && pages.contains("VDEGridCodePage") else { continue }
+                seen.insert(ctl.name)
+                guard let k = ValueCodec(control: ctl), k.isSupported(config), let rb = k.raw(baseline), let ra = k.raw(config), rb != ra,
+                      k.display(config) != nil, k.display(baseline) != nil else { continue }
+                let (b, a) = Labels.formatPair(k, baseline, config)
+                out.append(Change(target: .control(ctl.name), label: Validation.label(ctl), before: b, after: a))
+                k.restoreRaw(rb, in: &rest)
+            }
+        }
+        for id in changed where rest.raw(id) != baseline.raw(id) {
+            out.append(Change(target: .setting(id), label: Labels.setting(id), before: Labels.format(baseline, id), after: Labels.format(config, id)))
         }
         return out
     }
@@ -223,13 +281,39 @@ enum Labels {
         if (128...191).contains(id) { return String(format: "0x%04X", c.raw(id)) }
         if let codec = ValueCodec(setting: id), codec.isSupported(c) { return codec.formatted(c) }
         guard let info = c.info.info(id), info.isSupported else { return "\(c.raw(id))" }
-        let unit = Catalog.shared.unit(forSetting: id).map { " " + L10n.catalog($0) } ?? ""
-        return number(info.display(c.raw(id)), step: info.step) + unit
+        return number(info.display(c.raw(id)), step: info.step) + unitSuffix(id)
     }
 
-    static func number(_ v: Double, step: Double) -> String {
-        let decimals = step >= 1 ? 0 : step >= 0.1 ? 1 : step >= 0.01 ? 2 : 3
+    private static func unitSuffix(_ id: Int) -> String {
+        Units.display(Catalog.shared.unit(forSetting: id)).map { " " + $0 } ?? ""
+    }
+
+    static func number(_ v: Double, step: Double, extraDecimals: Int = 0) -> String {
+        let decimals = (step >= 1 ? 0 : step >= 0.1 ? 1 : step >= 0.01 ? 2 : 3) + extraDecimals
         return v.formatted(.number.precision(.fractionLength(decimals)))
+    }
+
+    /// Before/after texts for the change list, with as many extra decimals as it takes to tell them apart.
+    static func formatPair(_ b: DeviceConfiguration, _ c: DeviceConfiguration, _ id: Int) -> (String, String) {
+        if let k = ValueCodec(setting: id), k.isSupported(c) { return formatPair(k, b, c) }
+        let x = format(b, id), y = format(c, id)
+        guard x == y, let info = c.info.info(id), info.isSupported else { return (x, y) }
+        for extra in 1...6 {
+            let p = number(info.display(b.raw(id)), step: info.step, extraDecimals: extra) + unitSuffix(id)
+            let q = number(info.display(c.raw(id)), step: info.step, extraDecimals: extra) + unitSuffix(id)
+            if p != q { return (p, q) }
+        }
+        return (x, y)
+    }
+
+    static func formatPair(_ k: ValueCodec, _ b: DeviceConfiguration, _ c: DeviceConfiguration) -> (String, String) {
+        let x = k.formatted(b), y = k.formatted(c)
+        guard x == y, let vb = k.display(b), let vc = k.display(c) else { return (x, y) }
+        for extra in 1...6 {
+            let p = k.format(vb, b, extraDecimals: extra) + k.unitSuffix, q = k.format(vc, c, extraDecimals: extra) + k.unitSuffix
+            if p != q { return (p, q) }
+        }
+        return (x, y)
     }
 }
 

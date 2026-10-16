@@ -531,3 +531,17 @@ extension GridCodes {
         return rest.isEmpty ? name : "\(name) — \(rest)"
     }
 }
+
+/// Units as shown next to values: VE Configure's "Hr", "seconds" and "deg C" in their short forms, translated.
+enum Units {
+    static func display(_ unit: String?) -> String? {
+        guard var u = unit?.trimmingCharacters(in: .whitespaces), !u.isEmpty else { return nil }
+        switch u {
+        case "Hr": u = "h"
+        case "seconds", "sec", "Seconds": u = "s"
+        case "deg C", "degC": u = "°C"
+        default: break
+        }
+        return L10n.catalog(u)
+    }
+}
