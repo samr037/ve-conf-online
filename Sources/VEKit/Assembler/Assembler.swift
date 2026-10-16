@@ -76,6 +76,23 @@ class Assembler: CalculatorHost {
     var globalDepth = 0
     var globalMacros: [String: Macro] = [:]
     var macroDepth = 0
+    /// Active `.SOURCE` / `.INSERT` / `.ASSEMBLE` nesting.
+    var includeDepth = 0
+    /// Lines processed in this assembly (all passes), against `lineBudget`.
+    var linesProcessed = 0
+    var lineBudget = Assembler.maxLines
+
+    // Limits that VE Configure does not have; they turn hostile sources into errors instead of crashes or hangs.
+    /// `.SOURCE` / `.INSERT` / `.ASSEMBLE` nesting (a file including itself would otherwise recurse forever).
+    /// The library nests 3 deep at most.
+    static let maxIncludeDepth = 255
+    /// Highest `$` a DATA may write to. The device holds 4 KB; this only bounds memory.
+    static let maxCodeSize = 1 << 20
+    /// Lines processed per assembly: nested `.WHILE` loops each allowed 1024 iterations multiply. The largest
+    /// library assistant processes about 110 000 lines (both passes, framework included).
+    static let maxLines = 4_000_000
+    /// Stack for the assembly thread: macro, include and calculator nesting are all recursive.
+    static let stackSize = 256 << 20
 
     private(set) var pass = 0
     var stopped = false
@@ -97,6 +114,30 @@ class Assembler: CalculatorHost {
     /// Two passes over the root list. Returns the emitted bytes ($CODE) of the last pass.
     @discardableResult
     func assemble(root: LineList, passes: Int = 2) -> Bool {
+        var ok = false
+        Self.withLargeStack { ok = self.runPasses(root: root, passes: passes) }
+        return ok
+    }
+
+    /// Runs `body` on a thread with a stack deep enough for the nesting limits (the 512 KB of a secondary thread
+    /// holds only a few dozen nested macro or function levels in a debug build), and waits for it.
+    static func withLargeStack(_ body: () -> Void) {
+        if Thread.current.stackSize >= stackSize { body(); return }
+        final class Box: @unchecked Sendable { var body: (() -> Void)? }
+        withoutActuallyEscaping(body) { body in
+            let box = Box()
+            box.body = body
+            let done = DispatchSemaphore(value: 0)
+            let thread = Thread { box.body?(); done.signal() }
+            thread.stackSize = stackSize
+            thread.start()
+            done.wait()
+            box.body = nil
+        }
+    }
+
+    private func runPasses(root: LineList, passes: Int) -> Bool {
+        linesProcessed = 0
         for p in 1...passes {
             reset(firstPass: p == 1)
             pass = p
@@ -123,6 +164,7 @@ class Assembler: CalculatorHost {
         globalDepth = 0
         globalMacros = [:]
         macroDepth = 0
+        includeDepth = 0
         frameLabels = nil
         macroLocals = nil
         localNames = []
@@ -159,6 +201,11 @@ class Assembler: CalculatorHost {
     }
 
     func process(_ line: SourceLine, in frame: Frame) {
+        linesProcessed += 1
+        if linesProcessed > lineBudget {
+            report("Assembly stopped: more than \(lineBudget) lines processed (runaway .WHILE loops?)", fatal: true)
+            return
+        }
         if let e = line.error { report(e); return }
         let op = line.opcode.lowercased()
         if let handler = directive(op) {
@@ -293,6 +340,11 @@ class Assembler: CalculatorHost {
               case .string(var code)? = codeLabel.value, case .int(let loc)? = locLabel.value else { return }
         codeLabel.value = nil   // release the buffer so the append below does not copy it
         let at = Int(loc)
+        guard at < Self.maxCodeSize else {
+            codeLabel.value = .string(code)
+            report("location counter $ beyond the \(Self.maxCodeSize / 1024) KB code limit", fatal: true)
+            return
+        }
         if at >= 0 {
             if code.count <= at { code += [UInt8](repeating: 0xFF, count: at + 1 - code.count) }
             code[at] = byte
@@ -423,6 +475,8 @@ class Assembler: CalculatorHost {
         codeLabel(line)
         guard params(line, 1, 1) else { return }
         guard case .string(let text)? = evaluate(line.params[0]) else { report("string expression expected"); return }
+        guard enterInclude() else { return }
+        defer { includeDepth -= 1 }
         process(SourceLine(text), in: frame)
     }
 
@@ -431,6 +485,8 @@ class Assembler: CalculatorHost {
         guard params(line, 1, 1), case .string(let nameBytes)? = evaluate(line.params[0]) else { return }
         let name = String(decoding: nameBytes, as: Latin1.self)
         guard let text = sourceProvider(name) else { report("Cannot open file"); return }
+        guard enterInclude() else { return }
+        defer { includeDepth -= 1 }
         let list = LineList(header: name, text: text)
         if newScope {
             let saved = (frameLabels, macroLocals, localNames, scope)
@@ -451,6 +507,16 @@ class Assembler: CalculatorHost {
             }
             currentFrame = saved
         }
+    }
+
+    /// Counts one more `.SOURCE` / `.INSERT` / `.ASSEMBLE` level; false (after a fatal error) past the limit.
+    private func enterInclude() -> Bool {
+        guard includeDepth < Self.maxIncludeDepth else {
+            report("nesting too deep (.SOURCE / .INSERT / .ASSEMBLE more than \(Self.maxIncludeDepth) levels)", fatal: true)
+            return false
+        }
+        includeDepth += 1
+        return true
     }
 
     func willEnterSource(_ name: String) {}
