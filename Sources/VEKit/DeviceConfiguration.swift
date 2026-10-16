@@ -16,11 +16,18 @@ public struct SettingInfo: Equatable, Sendable {
     }
     public func display(_ raw: UInt16) -> Double { scale * (Double(raw) + Double(offset)) }
     /// Nearest raw value for a physical value, clamped to the device range.
-    public func raw(for value: Double) -> UInt16 {
-        guard isSupported else { return defaultRaw }
-        let r = (value / scale - Double(offset)).rounded()
+    /// Ties round to even, like Delphi `Round` in VE Configure. `nil` for an unsupported setting or a
+    /// non-finite value (NaN, ±∞), which must never reach the device.
+    public func rawValue(for value: Double) -> UInt16? {
+        guard isSupported, value.isFinite else { return nil }
+        let r = (value / scale - Double(offset)).rounded(.toNearestOrEven)
+        guard r.isFinite else { return nil }
         return UInt16(clamping: Int(min(max(r, Double(minRaw)), Double(maxRaw))))
     }
+
+    /// `rawValue(for:)`, falling back to the current default when the value cannot be encoded.
+    /// Prefer `rawValue(for:)` so a NaN is refused instead of silently replaced.
+    public func raw(for value: Double) -> UInt16 { rawValue(for: value) ?? defaultRaw }
     /// Smallest step between two displayable values.
     public var step: Double { scale }
 }
@@ -85,13 +92,25 @@ public struct DeviceSettingInfo: Equatable, Sendable {
         return w.data
     }
 
-    public func info(_ id: Int) -> SettingInfo? { id < records.count ? records[id] : nil }
+    public func info(_ id: Int) -> SettingInfo? { records.indices.contains(id) ? records[id] : nil }
+
+    /// Settings that are grid-code protected on every firmware: the grid code (81) and the grid words (128…191).
+    public static func isGridProtected(setting id: Int) -> Bool { id == 81 || (128...191).contains(id) }
+    /// `@_ShortCircuitIsFatal`, the only protected flag bit seen.
+    public static func isGridProtected(flag n: Int) -> Bool { n == 64 }
 
     /// Bit 7: hidden/locked in the UI for this firmware. Bit 0: protected (grid code / installer password).
-    public func isHidden(setting id: Int) -> Bool { id < settingAttributes.count && settingAttributes[id] & 0x80 != 0 }
-    public func isProtected(setting id: Int) -> Bool { id < settingAttributes.count && settingAttributes[id] & 0x01 != 0 }
-    public func isHidden(flag n: Int) -> Bool { n < flagAttributes.count && flagAttributes[n] & 0x80 != 0 }
-    public func isProtected(flag n: Int) -> Bool { n < flagAttributes.count && flagAttributes[n] & 0x01 != 0 }
+    public func isHidden(setting id: Int) -> Bool {
+        settingAttributes.indices.contains(id) && settingAttributes[id] & 0x80 != 0
+    }
+    /// Fails closed: without an attribute byte (version 1 files, short tables) the grid items stay protected.
+    public func isProtected(setting id: Int) -> Bool {
+        settingAttributes.indices.contains(id) ? settingAttributes[id] & 0x01 != 0 : Self.isGridProtected(setting: id)
+    }
+    public func isHidden(flag n: Int) -> Bool { flagAttributes.indices.contains(n) && flagAttributes[n] & 0x80 != 0 }
+    public func isProtected(flag n: Int) -> Bool {
+        flagAttributes.indices.contains(n) ? flagAttributes[n] & 0x01 != 0 : Self.isGridProtected(flag: n)
+    }
 }
 
 /// `BareSettingData`: the device's actual setting values and its assistant program memory.
@@ -293,10 +312,10 @@ public struct DeviceConfiguration: Equatable, Sendable {
 
     public var firmware: Firmware { Firmware(number: data.firmware & 0xFF_FFFF) }
 
-    public func raw(_ id: Int) -> UInt16 { id < data.values.count ? data.values[id] : 0 }
+    public func raw(_ id: Int) -> UInt16 { data.values.indices.contains(id) ? data.values[id] : 0 }
 
     public mutating func setRaw(_ id: Int, _ value: UInt16) {
-        guard id < data.values.count else { return }
+        guard data.values.indices.contains(id) else { return }
         data.values[id] = value
     }
 
@@ -305,16 +324,23 @@ public struct DeviceConfiguration: Equatable, Sendable {
         return i.display(raw(id))
     }
 
-    public mutating func setValue(_ id: Int, _ value: Double) {
-        guard let i = info.info(id), i.isSupported else { return }
-        setRaw(id, i.raw(for: value))
+    /// Returns false (and changes nothing) for an unsupported setting or a non-finite value.
+    @discardableResult
+    public mutating func setValue(_ id: Int, _ value: Double) -> Bool {
+        guard let r = info.info(id)?.rawValue(for: value), data.values.indices.contains(id) else { return false }
+        setRaw(id, r)
+        return true
     }
 
+    static func isFlagIndex(_ n: Int) -> Bool { n >= 0 && n < SettingNames.flagWords.count * 16 }
+
     public func flag(_ n: Int) -> Bool {
-        raw(SettingNames.flagWords[n / 16]) >> UInt16(n % 16) & 1 == 1
+        guard Self.isFlagIndex(n) else { return false }
+        return raw(SettingNames.flagWords[n / 16]) >> UInt16(n % 16) & 1 == 1
     }
 
     public mutating func setFlag(_ n: Int, _ on: Bool) {
+        guard Self.isFlagIndex(n) else { return }
         let word = SettingNames.flagWords[n / 16]
         let mask = UInt16(1) << UInt16(n % 16)
         setRaw(word, on ? raw(word) | mask : raw(word) & ~mask)
@@ -322,7 +348,7 @@ public struct DeviceConfiguration: Equatable, Sendable {
 
     /// Whether the firmware supports flag bit `n` (the info record's max holds the supported-bits mask).
     public func supportsFlag(_ n: Int) -> Bool {
-        guard let i = info.info(SettingNames.flagWords[n / 16]), i.isSupported else { return false }
+        guard Self.isFlagIndex(n), let i = info.info(SettingNames.flagWords[n / 16]), i.isSupported else { return false }
         return i.maxRaw >> UInt16(n % 16) & 1 == 1
     }
 
