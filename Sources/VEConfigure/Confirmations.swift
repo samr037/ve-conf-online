@@ -37,4 +37,36 @@ enum Confirmations {
                    informative: L("Enabling the virtual switch will disable the assistant functionality. All configured assistants will be removed! Continue?"),
                    continueTitle: L("Remove Assistants"))
     }
+
+    /// Runs the grid-code selection dialogs; returns the code to apply, or nil to keep the current one.
+    static func resolve(_ choice: GridPages.Choice) -> Int? {
+        switch choice {
+        case .accept(let n):
+            return n
+        case .reject(let message):
+            let a = NSAlert()
+            a.alertStyle = .warning
+            a.messageText = L("Grid code not changed")
+            a.informativeText = message
+            a.addButton(withTitle: L("OK"))
+            a.runModal()
+            return nil
+        case .propose(let message, let alternative, let button, let keep):
+            let a = NSAlert()
+            a.alertStyle = .warning
+            a.messageText = L("Grid code")
+            a.informativeText = message
+            a.addButton(withTitle: button)
+            if let keep { a.addButton(withTitle: L("Keep Option %d", keep)) }
+            a.addButton(withTitle: L("Cancel"))
+            switch a.runModal() {
+            case .alertFirstButtonReturn: return alternative
+            case .alertSecondButtonReturn: return keep
+            default: return nil
+            }
+        case .confirm(let message, let button, let then):
+            guard ask(L("Grid code"), informative: message, continueTitle: button) else { return nil }
+            return resolve(then)
+        }
+    }
 }

@@ -474,7 +474,9 @@ struct CatalogChoiceRow: View {
             return
         }
         if row.control.name == "GridCodeComboBox" {
-            document.edit(L("Change Grid Code"), control: row.control.name) { GridPages.apply(gridCode: value, to: &$0) }
+            guard value != Int(row.config.raw(81)), !Access.isLocked(row.control, document.ruleContext),
+                  let n = Confirmations.resolve(GridPages.choose(value, document.ruleContext)) else { return }
+            document.edit(L("Change Grid Code"), control: row.control.name) { GridPages.apply(gridCode: n, to: &$0) }
             return
         }
         document.edit(L("Change %@", row.label), control: row.control.name) { codec.setRaw(value, in: &$0) }

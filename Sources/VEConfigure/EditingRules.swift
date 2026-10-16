@@ -125,14 +125,91 @@ enum GridPages {
 
     /// GridCodeComboBoxDataSet + AfterDataSet: the code, its default parameter words from the firmware table,
     /// and the checker words A = code, B = (code + variant) & 0xFF.
+    /// Codes not in the device's table are not applied at all (their parameters are unknown).
     static func apply(gridCode n: Int, to c: inout DeviceConfiguration) {
-        c.setRaw(81, UInt16(n))
         guard let entry = c.gridTable?.entries[n] else { return }
+        c.setRaw(81, UInt16(n))
         for id in 129...190 where c.info.info(id)?.isSupported == true {
             c.setRaw(id, entry.isPresent(setting: id) ? (entry.defaults[id] ?? 0xFFFF) : 0xFFFF)
         }
         c.setRaw(128, UInt16(n))
         c.setRaw(191, UInt16((n + entry.variant) & 0xFF))
+    }
+}
+
+// MARK: - Grid-code selection (GridCodeComboBoxDataSet @00545140)
+
+extension GridPages {
+    /// What happens when the user picks grid code `n`.
+    indirect enum Choice: Equatable {
+        case accept(Int)
+        case reject(String)
+        /// VE Configure proposes another code: the button applies `alternative`, cancelling keeps the current code.
+        /// With `keep` set, declining applies `keep` instead (VE Configure's Yes/No).
+        case propose(message: String, alternative: Int, button: String, keep: Int?)
+        /// A rule depends on a device fact this app cannot read from the file: the user must confirm, then `then`.
+        case confirm(message: String, button: String, then: Choice)
+    }
+
+    private static func rule(_ id: String, newValue n: Int, _ ctx: RuleContext) -> Bool? {
+        guard let expr = Catalog.shared.rulesByID[id]?.expr else { return nil }
+        return ctx.evaluate(expr.replacingOccurrences(of: "newValue", with: String(n)))
+    }
+
+    static func choose(_ n: Int, _ ctx: RuleContext) -> Choice {
+        let c = ctx.config
+        let name = { (g: Int) in GridCodes.name(g) }
+        guard c.gridTable?.entries[n] != nil else {
+            return .reject(L("Grid code “%@” is not supported by the firmware in this device.", name(n)))
+        }
+        let codeRules = byCode(n, ctx)
+        // grid.extendedVEBus.reject: a MultiPlus-II ('/') part of a VE.Bus system with extended features.
+        switch rule("grid.extendedVEBus.reject", newValue: n, ctx) {
+        case false?: return .reject(extendedVEBusMessage)
+        case nil:
+            return .confirm(message: L("VE Configure for Mac cannot tell from the file whether this device is part of a VE.Bus system with extended features. VE Configure refuses the selection in that case:") + "\n\n" + extendedVEBusMessage,
+                            button: L("The System Has No Extended Features"), then: codeRules)
+        default: return codeRules
+        }
+    }
+
+    private static var extendedVEBusMessage: String {
+        L("A MultiPlus-II/Multigrid does not allow a grid code to be selected when it is part of a VE.Bus system with extended features!!\n\nRemove the extended features with the aid of VE.Bus System Configurator:\n - Do not uncheck any 'Switch as Group' box.\n - Do not use more than 1 AC input in a system with Multi's or do not use more than 2 AC Inputs in a system with Quattro's.")
+    }
+
+    /// The per-code checks. Device facts this app cannot read (internal interface protection) fail closed: option 5
+    /// (internal NS protection) is never accepted on a guess, and the pre-485 restriction applies.
+    private static func byCode(_ n: Int, _ ctx: RuleContext) -> Choice {
+        let name = { (g: Int) in GridCodes.name(g) }
+        switch n {
+        case 4:
+            // grid.vde.internalIP.4to5: only proposed when the device is known to have internal protection.
+            if rule("grid.vde.internalIP.4to5", newValue: n, ctx) == true {
+                return .propose(message: L("This device is equipped with internal interface protection!\nYou selected option:\n\n   %@\n\nIs it OK to change to option:\n\n   %@\n\ninstead?", name(4), name(5)),
+                                alternative: 5, button: L("Use Option 5"), keep: 4)
+            }
+            return .accept(4)
+        case 5:
+            switch rule("grid.vde.noIP.5to4", newValue: n, ctx) {
+            case false?: return .accept(5)
+            case true?:
+                return .propose(message: L("This device is not equipped with internal interface protection!\nSo you cannot choose option:\n\n   %@\n\nIs it OK to use option:\n\n   %@\n\ninstead?", name(5), name(4)),
+                                alternative: 4, button: L("Use Option 4"), keep: nil)
+            case nil:
+                return .propose(message: L("Option:\n\n   %@\n\nis only allowed on a device equipped with internal interface protection. VE Configure for Mac cannot tell from the file whether this device has it.\n\nIs it OK to use option:\n\n   %@\n\ninstead?", name(5), name(4)),
+                                alternative: 4, button: L("Use Option 4"), keep: nil)
+            }
+        case 6...19, 22...29:
+            // grid.noIP.reject: firmware < 485 without internal interface protection (unknown = not equipped).
+            if rule("grid.noIP.reject", newValue: n, ctx) != true {
+                return .reject(L("This device is not equipped with internal interface protection!\nSo you cannot choose option:\n\n   %@", name(n)))
+            }
+            return .accept(n)
+        case 0, 1, 2, 3, 20, 21, 30, 31, 32:
+            return .accept(n)
+        default:
+            return .reject(L("Grid code “%@” is not supported by VE Configure for Mac.", name(n)))
+        }
     }
 }
 

@@ -320,6 +320,6 @@ enum Labels {
 enum GridCodes {
     /// Display names for the firmware grid-code enum (VE Configure's grid code combo box).
     static func name(_ index: Int) -> String {
-        Catalog.shared.gridCodeName(index) ?? SettingNames.gridCodes[index]
+        Catalog.shared.gridCodeName(index) ?? SettingNames.gridCodes[safe: index] ?? L("Grid code %d", index)
     }
 }
