@@ -1,0 +1,93 @@
+import SwiftUI
+import VEKit
+
+/// Trailing inspector: every difference from the loaded file, revertible one by one, and the save action.
+struct ChangeList: View {
+    @ObservedObject var document: ConfigDocument
+    var save: () -> Void
+
+    var body: some View {
+        let changes = document.changes
+        VStack(alignment: .leading, spacing: 0) {
+            header(count: changes.count)
+            Divider()
+            if changes.isEmpty {
+                empty
+            } else {
+                List {
+                    ForEach(changes) { change in
+                        row(change)
+                            .contextMenu {
+                                Button("Restore Loaded Value") { document.revert(change) }
+                                    .disabled(change.target == .assistants)
+                            }
+                    }
+                }
+                .listStyle(.sidebar)
+            }
+            Divider()
+            footer(changes: changes)
+        }
+        .frame(minWidth: 240)
+    }
+
+    private func header(count: Int) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("Changes").font(.headline)
+            Spacer()
+            Text(count == 0 ? "None" : "\(count)")
+                .font(.subheadline.monospacedDigit())
+                .foregroundStyle(count == 0 ? Color.secondary : Theme.changed)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+
+    private var empty: some View {
+        VStack(spacing: 6) {
+            Spacer()
+            Text("No changes yet")
+                .font(.callout.weight(.medium))
+            Text("Every setting you change appears here with its previous value, so you can review it before saving.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 200)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func row(_ c: ConfigDocument.Change) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(c.label).font(.callout)
+            HStack(spacing: 6) {
+                if !c.before.isEmpty {
+                    Text(c.before).strikethrough().foregroundStyle(.secondary)
+                    Image(systemName: "arrow.right").font(.caption2).foregroundStyle(.tertiary)
+                        .accessibilityLabel("changed to")
+                }
+                Text(c.after).foregroundStyle(Theme.changed).fontWeight(.medium)
+            }
+            .font(.caption.monospacedDigit())
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func footer(changes: [ConfigDocument.Change]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Upload the saved file through VRM (Remote VE Configure). The GX resets the inverter if needed.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button(action: save) {
+                Text("Save…").frame(maxWidth: .infinity)
+            }
+            .controlSize(.large)
+            .keyboardShortcut("s", modifiers: .command)
+            .buttonStyle(.borderedProminent)
+            .disabled(changes.isEmpty)
+        }
+        .padding(14)
+    }
+}
