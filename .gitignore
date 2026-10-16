@@ -1,0 +1,5 @@
+vendor/
+ghidra/proj/
+ghidra/out/
+.build/
+*.xcodeproj
