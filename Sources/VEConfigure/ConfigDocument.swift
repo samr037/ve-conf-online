@@ -39,8 +39,8 @@ final class ConfigDocument: ObservableObject, Identifiable {
     }
 
     func setValue(_ id: Int, _ value: Double, actionName: String) {
-        guard let info = config.info.info(id) else { return }
-        setRaw(id, info.raw(for: value), actionName: actionName)
+        guard let info = config.info.info(id), let raw = info.rawValue(for: value) else { return }
+        setRaw(id, raw, actionName: actionName)
     }
 
     func setFlag(_ n: Int, _ on: Bool, actionName: String) {

@@ -653,7 +653,8 @@
   "Flooded deep discharge flat plate lead antimony": "battery preset",
   "AGM Victron Deep Discharge (fastest recharge), Tubular plate batteries (semi float use), AGM spiral cell": "battery preset",
   "Flooded tubular plate": "battery preset",
-  "Redflow ZCell": "battery preset"
+  "Redflow ZCell": "battery preset",
+  "seconds": "unit (change list)"
  },
  "help": {
   "Use this setting to specify the frequency of the Multi. This is the frequency the Multi will make when it is inverting (except when Change inverter period time when VS is on is checked and the VS is on). This setting determines also the acceptable frequency range (either 45-55Hz or 55-65Hz) for the transfer switch if Accept wide input frequency range is disabled.": "help",
