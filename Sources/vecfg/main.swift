@@ -161,6 +161,29 @@ case "diff" where args.count == 2: diff(args[0], args[1])
 case "set": set(args)
 case "assistants" where !args.isEmpty: assistants(args[0])
 case "reconstruct": reconstruct(args)
+case "install" where args.count >= 5:
+    // vecfg install <vfp> <target.rvsc> <answers-from.rvsc> -o <out.rvsc>: replay another file's assistants onto a target.
+    do {
+        let lib = try AssistantLibrary(contentsOf: URL(fileURLWithPath: args[0]))
+        let target = load(args[1]), source = load(args[2])
+        let donor = try AssistantComposer(library: lib)
+        donor.meta = MetaGenerator.source(for: source)
+        let r0 = try donor.reconstruct(image: source.data.assistantMemory)
+        guard r0.success else { fail("cannot reconstruct \(args[2]): \(r0.messages)") }
+        let composer = try AssistantComposer(library: lib)
+        composer.items = donor.items
+        composer.framework = donor.framework
+        composer.answers = donor.answers
+        composer.meta = MetaGenerator.source(for: target)
+        let r = composer.build()
+        guard r.success else { fail("build failed: \(r.messages.prefix(5))") }
+        let (out, battery) = composer.apply(r, to: target)
+        if let battery { print("  note: assistants selected battery preset \(battery)") }
+        guard let o = args.firstIndex(of: "-o"), o + 1 < args.count else { fail(usage) }
+        try out.settingFile().write(to: URL(fileURLWithPath: args[o + 1]))
+        print("  assistant settings changes: " + r.vecChanges.keys.sorted().joined(separator: ", "))
+        diff(args[1], args[o + 1])
+    } catch { fail("\(error)") }
 case "meta" where !args.isEmpty: print(MetaGenerator.lines(for: load(args[0])).joined(separator: "\n"))
 default: fail(usage)
 }

@@ -5,6 +5,8 @@ import Foundation
 
 public struct AssistantBuildResult: Sendable {
     public var success: Bool
+    /// META `.SET` labels whose final value differs from META (`name` → new value), docs/re/05-meta.md §6.
+    public var vecChanges: [String: Value] = [:]
     public var code: [UInt8]
     public var messages: [AssemblerMessage]
     public var answers: [String: AnswerTable]
@@ -73,7 +75,52 @@ public final class AssistantComposer {
             verified = a.assemble(root: rootList(), passes: 3) && a.code == code
         }
         answers = a.tables
-        return AssistantBuildResult(success: verified, code: a.code, messages: a.messages, answers: a.tables, cancelled: false)
+        var r = AssistantBuildResult(success: verified, code: a.code, messages: a.messages, answers: a.tables, cancelled: false)
+        r.vecChanges = Self.vecChanges(meta: meta, assembler: a)
+        return r
+    }
+
+    /// FUN_0050EE78: every META ` .SET` label whose final value, as text, differs from the original.
+    static func vecChanges(meta: [UInt8], assembler a: Assembler) -> [String: Value] {
+        var out: [String: Value] = [:]
+        for raw in meta.split(separator: 0x0A) {
+            let line = String(decoding: raw.filter { $0 != 0x0D }, as: Latin1.self)
+            guard let set = line.range(of: " .SET "), let tail = line.range(of: ",4,true", options: .backwards) else { continue }
+            let name = String(line[..<set.lowerBound]).trimmingCharacters(in: .whitespaces)
+            let original = String(line[set.upperBound..<tail.lowerBound])
+            guard let v = a.global[name]?.value, v.text != original else { continue }
+            out[name] = v
+        }
+        return out
+    }
+
+    /// The "assistants removed" image: a 6-byte stub that keeps the checksum at the erased value.
+    public static func emptyImage(size: Int = 4096) -> [UInt8] {
+        [0xA7, 0xFE, 0x00, 0x00, 0x57, 0x01] + [UInt8](repeating: 0xFF, count: size - 6)
+    }
+
+    /// Applies a successful build to a configuration: settings changed by the assistants (clamped to the device
+    /// range, as FUN_00516420 does) and the new program image. `BatteryType_VEC` is returned for the caller,
+    /// which owns the battery presets.
+    public func apply(_ result: AssistantBuildResult, to config: DeviceConfiguration) -> (DeviceConfiguration, batteryType: Int?) {
+        var c = config
+        let targets = MetaGenerator.vecTargets(config)
+        for (name, value) in result.vecChanges {
+            guard case .int(let v) = value, let target = targets[name] else { continue }
+            switch target {
+            case .setting(let id):
+                guard let info = c.info.info(id) else { continue }
+                let clamped = min(max(Int(v), Int(info.minRaw)), Int(info.maxRaw))
+                c.setRaw(id, UInt16(clamped))
+            case .flag(let n):
+                c.setFlag(n, v != 0)
+            }
+        }
+        let size = config.data.assistantMemory.count
+        c.data.assistantMemory = items.isEmpty ? Self.emptyImage(size: size) : image(code: result.code, size: size)
+        var battery: Int? = nil
+        if case .int(let b)? = result.vecChanges["BatteryType_VEC"] { battery = Int(b) }
+        return (c, battery)
     }
 
     /// Starts the wizard of one assistant (state 5); the others replay their stored answers.
