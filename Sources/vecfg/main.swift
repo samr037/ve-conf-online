@@ -68,8 +68,9 @@ func show(_ path: String, all: Bool) {
     print("  assistant program: \(mem.allSatisfy { $0 == 0xFF } ? "empty" : "\(code) bytes of code in \(mem.count) bytes of memory")")
 }
 
-func diff(_ a: String, _ b: String) {
-    let x = load(a), y = load(b)
+func diff(_ a: String, _ b: String) { diff(load(a), load(b)) }
+
+func diff(_ x: DeviceConfiguration, _ y: DeviceConfiguration) {
     var any = false
     for id in 0..<min(x.data.values.count, y.data.values.count) where x.raw(id) != y.raw(id) {
         if [0, 1, 60, 61, 82].contains(id) { continue }
@@ -84,29 +85,74 @@ func diff(_ a: String, _ b: String) {
     if !any { print("  identical settings") }
 }
 
+/// Whether two paths name the same file: after `.`/`..`/symlink resolution, or the same inode (hard link,
+/// case-insensitive volume).
+func samePath(_ a: String, _ b: String) -> Bool {
+    let x = URL(fileURLWithPath: a).standardizedFileURL.resolvingSymlinksInPath().path
+    let y = URL(fileURLWithPath: b).standardizedFileURL.resolvingSymlinksInPath().path
+    if x == y { return true }
+    guard let ax = try? FileManager.default.attributesOfItem(atPath: x),
+          let ay = try? FileManager.default.attributesOfItem(atPath: y) else { return false }
+    func id(_ attrs: [FileAttributeKey: Any]) -> [NSNumber?] {
+        [attrs[.systemNumber] as? NSNumber, attrs[.systemFileNumber] as? NSNumber]
+    }
+    return id(ax)[0] != nil && id(ax)[1] != nil && id(ax) == id(ay)
+}
+
+/// `-o <out>` must be the last two arguments and must not overwrite any input.
+func outputPath(_ args: [String], inputs: [String], minIndex: Int) -> String {
+    guard let o = args.firstIndex(of: "-o"), o >= minIndex, o + 2 == args.count else {
+        fail("-o <out.rvsc> is required and must come last\n" + usage)
+    }
+    let out = args[o + 1]
+    for input in inputs where samePath(input, out) { fail("refusing to overwrite the input \(input); choose another -o") }
+    return out
+}
+
+func parseFlag(_ value: String) -> Bool? {
+    switch value.lowercased() {
+    case "1", "on", "true", "yes": true
+    case "0", "off", "false", "no": false
+    default: nil
+    }
+}
+
+/// Write `c` to `out`, read it back and list what changed against the in-memory original.
+func writeAndDiff(_ c: DeviceConfiguration, to out: String, original: DeviceConfiguration) {
+    do { try c.settingFile().write(to: URL(fileURLWithPath: out)) } catch { fail("\(out): \(error)") }
+    let reread = load(out)
+    guard reread.encoded() == c.encoded() else { fail("\(out): written file does not read back identically") }
+    diff(original, reread)
+}
+
 func set(_ args: [String]) {
-    guard let path = args.first, let o = args.firstIndex(of: "-o"), o + 1 < args.count else { fail(usage) }
-    var c = load(path)
-    for assignment in args[1..<o] {
-        let parts = assignment.split(separator: "=", maxSplits: 1).map(String.init)
-        guard parts.count == 2 else { fail("expected NAME=VALUE, got \(assignment)") }
+    guard let path = args.first, path != "-o" else { fail(usage) }
+    let out = outputPath(args, inputs: [path], minIndex: 1)
+    let original = load(path)
+    var c = original
+    for assignment in args[1..<(args.count - 2)] {
+        let parts = assignment.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+        guard parts.count == 2, !parts[0].isEmpty else { fail("expected NAME=VALUE, got \(assignment)") }
         let key = parts[0], value = parts[1]
         let match: (String) -> Bool = { displayName($0).lowercased() == key.lowercased() || $0 == key }
         if let n = SettingNames.flags.firstIndex(where: match) {
             guard c.supportsFlag(n) else { fail("\(key) is not supported by this firmware") }
-            c.setFlag(n, ["1", "on", "true", "yes"].contains(value.lowercased()))
+            if c.info.isProtected(flag: n) { fail("\(key) is protected (grid code password) — not editable here") }
+            guard let on = parseFlag(value) else { fail("\(key): expected on/off, 1/0, true/false or yes/no, got \(value)") }
+            c.setFlag(n, on)
         } else if let id = Int(key) ?? SettingNames.settings.firstIndex(where: match) {
-            guard let v = Double(value) else { fail("\(key): not a number: \(value)") }
+            guard SettingNames.settings.indices.contains(id) else { fail("\(key): no such setting id (0…\(SettingNames.settings.count - 1))") }
+            if SettingNames.flagWords.contains(id) { fail("\(key) is a whole flag word; set its flags by name instead") }
+            guard let v = Double(value), v.isFinite else { fail("\(key): not a number: \(value)") }
             guard c.info.info(id)?.isSupported == true else { fail("\(key) is not supported by this device") }
             if c.info.isProtected(setting: id) { fail("\(key) is protected (grid code password) — not editable here") }
-            c.setValue(id, v)
+            guard c.setValue(id, v) else { fail("\(key): cannot store \(value)") }
             if abs((c.value(id) ?? v) - v) > 1e-9 { print("  note: \(key) set to \(format(c, id)) (device step/range)") }
         } else {
             fail("unknown setting or flag: \(key)")
         }
     }
-    do { try c.settingFile().write(to: URL(fileURLWithPath: args[o + 1])) } catch { fail("\(error)") }
-    diff(path, args[o + 1])
+    writeAndDiff(c, to: out, original: original)
 }
 
 func assistants(_ path: String) {
@@ -123,6 +169,10 @@ func assistants(_ path: String) {
 func reconstruct(_ args: [String]) {
     guard args.count >= 2 else { fail(usage) }
     let c = load(args[1])
+    if AssistantComposer.installedIDs(in: c.data.assistantMemory).count < 2 {
+        print("  no assistants installed")
+        return
+    }
     do {
         let lib = try AssistantLibrary(contentsOf: URL(fileURLWithPath: args[0]))
         let composer = try AssistantComposer(library: lib)
@@ -182,9 +232,14 @@ case "wizard" where args.count >= 3:
                 print("  \(n). [\(p.step.kind.rawValue)] \(content.title) — \(p.labels.joined(separator: ",")) = \(values)")
                 if n > 200 { print("  too many steps"); break loop }
                 var answer = p.values
-                for a in args where a.contains("=") {
-                    let kv = a.split(separator: "=").map(String.init)
-                    if let i = p.labels.firstIndex(of: kv[0]), let v = Int32(kv[1]) { answer[i] = v; print("     → \(kv[0]) = \(v)") }
+                for a in args.dropFirst(3) where a.contains("=") {
+                    let kv = a.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+                    guard kv.count == 2, !kv[0].isEmpty else { fail("expected LABEL=VALUE, got \(a)") }
+                    guard let i = p.labels.firstIndex(of: kv[0]) else { continue }
+                    guard i < answer.count else { fail("\(kv[0]): this step has no value slot for it") }
+                    guard let v = Int32(kv[1]) else { fail("\(kv[0]): not a 32-bit integer: \(kv[1])") }
+                    answer[i] = v
+                    print("     → \(kv[0]) = \(v)")
                 }
                 w.next(answer)
             case .finished(let r):
@@ -198,6 +253,7 @@ case "wizard" where args.count >= 3:
     } catch { fail("\(error)") }
 case "install" where args.count >= 5:
     // vecfg install <vfp> <target.rvsc> <answers-from.rvsc> -o <out.rvsc>: replay another file's assistants onto a target.
+    let outPath = outputPath(args, inputs: [args[0], args[1], args[2]], minIndex: 3)
     do {
         let lib = try AssistantLibrary(contentsOf: URL(fileURLWithPath: args[0]))
         let target = load(args[1]), source = load(args[2])
@@ -212,12 +268,22 @@ case "install" where args.count >= 5:
         composer.meta = MetaGenerator.source(for: target)
         let r = composer.build()
         guard r.success else { fail("build failed: \(r.messages.prefix(5))") }
+        // Code + one u16 per assistant ID (asfStart, assistants, asfStop) + u32 checksum must fit the memory.
+        let ids = [composer.framework.start.id] + composer.items.map(\.package.id) + [composer.framework.stop.id]
+        let size = target.data.assistantMemory.count
+        let needed = r.code.count + 2 * ids.count + 4
+        guard needed <= size else {
+            fail("assistant program does not fit: \(r.code.count) bytes of code + \(ids.count) IDs + checksum = \(needed) > \(size) bytes")
+        }
         let (out, battery) = composer.apply(r, to: target)
+        let mem = out.data.assistantMemory
+        guard mem.count == size, Array(mem.prefix(r.code.count)) == r.code,
+              AssistantComposer.installedIDs(in: mem) == ids else {
+            fail("internal error: the assistant image does not hold the built code and IDs; nothing written")
+        }
         if let battery { print("  note: assistants selected battery preset \(battery)") }
-        guard let o = args.firstIndex(of: "-o"), o + 1 < args.count else { fail(usage) }
-        try out.settingFile().write(to: URL(fileURLWithPath: args[o + 1]))
         print("  assistant settings changes: " + r.vecChanges.keys.sorted().joined(separator: ", "))
-        diff(args[1], args[o + 1])
+        writeAndDiff(out, to: outPath, original: target)
     } catch { fail("\(error)") }
 case "meta" where !args.isEmpty: print(MetaGenerator.lines(for: load(args[0])).joined(separator: "\n"))
 default: fail(usage)
