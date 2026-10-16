@@ -37,7 +37,9 @@ final class Frame {
     let path: String
     var index = 0
     var conditions: [Character] = []
-    var whiles: [(line: Int, k: Int)] = []
+    /// Active `.WHILE`s: line and iteration, and the list holding the `.WHILE` (an `.INSERT`ed list shares the
+    /// stacks of its includer, so an `.ENDW` can meet a `.WHILE` of another list).
+    var whiles: [(line: Int, k: Int, list: ObjectIdentifier)] = []
     var pendingWhile: [Int: Int] = [:]
 
     init(list: LineList, path: String) {
@@ -507,8 +509,11 @@ class Assembler: CalculatorHost {
             didLeaveSource(name)
             (frameLabels, macroLocals, localNames, scope) = saved
         } else {
-            // .INSERT shares the current scope; conditionals are tracked by the inserted list itself.
+            // .INSERT shares the current scope and its conditional stack (§6): a block may open in the includer and
+            // close in the inserted file or the other way round. Skip mode still stops at the end of each list.
             let inserted = Frame(list: list, path: frame.site + "+" + name)
+            inserted.conditions = frame.conditions
+            inserted.whiles = frame.whiles
             let saved = currentFrame
             currentFrame = inserted
             while !stopped {
@@ -517,6 +522,8 @@ class Assembler: CalculatorHost {
                 process(list.line(inserted.index), in: inserted)
             }
             currentFrame = saved
+            frame.conditions = inserted.conditions
+            frame.whiles = inserted.whiles
         }
     }
 
@@ -605,7 +612,7 @@ class Assembler: CalculatorHost {
         }
         if truth {
             frame.conditions.append("w")
-            frame.whiles.append((frame.index, k))
+            frame.whiles.append((frame.index, k, ObjectIdentifier(frame.list)))
         } else if let (_, j) = skip(frame, forWhile: true, acceptElse: false) {
             frame.index = j
         } else {
@@ -616,6 +623,7 @@ class Assembler: CalculatorHost {
     private func endw(_ line: SourceLine, _ frame: Frame) {
         guard frame.conditions.last == "w", let w = frame.whiles.popLast() else { report("unexpected .ENDW"); return }
         frame.conditions.removeLast()
+        guard w.list == ObjectIdentifier(frame.list) else { report("internal error with while construction"); return }
         if w.k <= 1024 {
             frame.pendingWhile[w.line] = w.k + 1
             frame.index = w.line - 1

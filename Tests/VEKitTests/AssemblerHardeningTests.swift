@@ -89,3 +89,71 @@ private extension Assembler {
         #expect(a.code == [0x01, 0x04])   // the body runs 1025 times
     }
 }
+
+@Suite struct AssemblerDirectiveTests {
+    @Test func unsetRemovesAVariable() {
+        let a = asm("X .SET 1\nX .UNSET\n DATA int(Known('X'))\nX .SET 2\n DATA X")
+        #expect(a.errors.isEmpty, "\(a.messages)")
+        #expect(a.code == [0, 2])
+    }
+
+    @Test func unsetOfAFixedLabelIsAnError() {
+        let a = asm("F .EQU 3\nF .UNSET\n DATA F")
+        #expect(a.errors == ["Labeltype (fixed/variable) different from previous pass"], "\(a.messages)")
+        #expect(a.code == [3])
+    }
+
+    @Test func unsetOfAMacroParameterIsAnError() {
+        let a = asm("M .MACRO G\nG .UNSET\n DATA G\n .ENDM\n M 7")
+        #expect(a.errors == ["Cannot redefine a macro parameter"], "\(a.messages)")
+        #expect(a.code == [7])
+    }
+
+    @Test func unsetFollowsTheSetTargetOrder() {
+        // §5.4: a global *variable* is the target before the macro frame is consulted, exactly as for .SET.
+        let a = asm("""
+         .GLOBAL TRUE
+        G .SET 6
+         .GLOBAL FALSE
+        M .MACRO G
+        G .UNSET
+         .ENDM
+         M 1
+         .IFDEF G
+         DATA G
+         .ELSE
+         DATA 0xEE
+         .ENDIF
+        """)
+        #expect(a.errors.isEmpty, "\(a.messages)")
+        #expect(a.code == [0xEE])
+    }
+
+    @Test func unsetOfASystemLabelAndBadArity() {
+        #expect(asm("$ .UNSET").errors == ["Cannot remove a system label"])
+        #expect(asm("X .SET 1\nX .UNSET 1").errors == ["too many parameters"])
+        #expect(asm(" .UNSET").errors == ["label expected"])
+    }
+
+    @Test func insertSharesTheConditionalStack() {
+        // The inserted file closes the includer's block…
+        let a = asm(" .IF TRUE\n .INSERT 'inc'\n DATA 2", files: ["inc": " DATA 1\n .ENDIF"])
+        #expect(a.errors.isEmpty, "\(a.messages)")
+        #expect(a.code == [1, 2])
+        // …or leaves one open for the includer to close.
+        let b = asm(" .INSERT 'inc'\n DATA 2\n .ELSE\n DATA 3\n .ENDIF", files: ["inc": " .IF TRUE\n DATA 1"])
+        #expect(b.errors.isEmpty, "\(b.messages)")
+        #expect(b.code == [1, 2])
+        // A block left open at the end of the .SOURCE scope is still an error.
+        let c = asm(" .INSERT 'inc'\n DATA 2", files: ["inc": " .IF TRUE\n DATA 1"])
+        #expect(c.errors == ["expected .ENDIF"], "\(c.messages)")
+        // Skip mode stops at the end of the inserted list.
+        let d = asm(" .INSERT 'inc'\n DATA 2", files: ["inc": " .IF FALSE\n DATA 1"])
+        #expect(d.errors.contains("expected .ENDIF"), "\(d.messages)")
+    }
+
+    @Test func endwOfAnotherListsWhileIsAnError() {
+        let a = asm("I .SET 0\n .WHILE I<2\nI .SET I+1\n .INSERT 'inc'\n DATA I", files: ["inc": " .ENDW"])
+        #expect(a.errors.contains("internal error with while construction"), "\(a.messages)")
+    }
+}
