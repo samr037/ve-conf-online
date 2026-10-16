@@ -183,24 +183,48 @@ struct ValueCodec {
         return info.maxRaw & 0x10 != 0
     }
 
-    /// Writes a new raw value; returns false when the device range or the handler rejects it.
+    /// Writes a new raw value; returns false (and writes nothing) when the device range, the field width or the
+    /// handler rejects it. Values are never clamped into range.
     @discardableResult
     func setRaw(_ value: Int, in c: inout DeviceConfiguration) -> Bool {
         switch binding {
         case .setting(let i):
-            guard let info = c.info.info(i) else { return false }
-            let clamped = min(max(value, Int(info.minRaw)), Int(info.maxRaw))
-            c.setRaw(i, UInt16(clamping: clamped))
-            return clamped == value
+            guard let info = c.info.info(i), (Int(info.minRaw)...Int(info.maxRaw)).contains(value) else { return false }
+            c.setRaw(i, UInt16(value))
+            return true
+        case .flag, .peer:
+            return write(value, in: &c, checked: true)
+        }
+    }
+
+    /// Writes a raw value without range checks: used to restore a value read from the loaded file.
+    @discardableResult
+    func restoreRaw(_ value: Int, in c: inout DeviceConfiguration) -> Bool {
+        if case .setting(let i) = binding {
+            c.setRaw(i, UInt16(clamping: value))
+            return true
+        }
+        return write(value, in: &c, checked: false)
+    }
+
+    private func write(_ value: Int, in c: inout DeviceConfiguration, checked: Bool) -> Bool {
+        switch binding {
+        case .setting: return false
         case .flag(let n):
             c.setFlag(n, value != 0)
             return true
         case .peer(let spec, let handler):
-            guard isEditable else { return false }
+            guard isEditable || !checked else { return false }
             let ids = spec.peers.compactMap { $0.variable?.index }
             guard !ids.isEmpty else { return false }
             var w = ids.map { Int(c.raw($0)) }
             let p0 = spec.peers[0]
+            if checked, handler == .plain || handler == .torD4Delay, p0.width < 32 {
+                // The value must fit the field (two's complement when the codec has a sign bit).
+                let r: ClosedRange<Int>
+                if let sb = spec.codec.signBit, sb > 0 { r = -(1 << sb)...((1 << sb) - 1) } else { r = 0...((1 << p0.width) - 1) }
+                guard r.contains(value) else { return false }
+            }
             func insert(_ word: Int, _ r: Int) -> Int {
                 let width = p0.width
                 let masked = width >= 32 ? r : r & ((1 << width) - 1)
@@ -216,22 +240,33 @@ struct ValueCodec {
                 w[0] = (w[0] & 0x0FFF) | ((value & 0xF) << 12)
                 w[1] = (w[1] & 0x0FFF) | ((value & 0xF0) << 8)
             case .euFLowStage1:
-                guard w.count > 1 else { return false }
+                guard w.count > 1, !checked || (0...0xFFF).contains(value) else { return false }
                 w[0] = (w[0] & 0x0FFF) | ((value & 0xF00) << 4); w[1] = (w[1] & 0xFF00) | (value & 0xFF)
             case .euFHighStage1:
-                guard w.count > 1 else { return false }
+                guard w.count > 1, !checked || (0...0xFFF).contains(value) else { return false }
                 w[0] = (w[0] & 0x0FFF) | ((value & 0xF00) << 4); w[1] = (w[1] & 0x00FF) | ((value & 0xFF) << 8)
             case .euWaitingTime: w[0] = (w[0] & 0xF000) | (value & 0xFFF)
-            case .polandFStart: w[0] = (value & 0xFF) * 0x101
+            case .polandFStart:
+                guard !checked || (0...0xFF).contains(value) else { return false }
+                w[0] = (value & 0xFF) * 0x101
             case .minCosPhi:
-                w[0] = value == 0 ? 0xFFFF : Int((tan(acos(Double(value) / 100)) * 256).rounded(.toNearestOrEven))
+                guard (0...100).contains(value) else { return false }
+                guard value != 0 else { w[0] = 0xFFFF; break }
+                guard let word = Self.int((tan(acos(Double(value) / 100)) * 256).rounded(.toNearestOrEven)) else { return false }
+                w[0] = word
             case .lom:
                 var g = (w[0] & ~0x03) | (value & 0x03)
                 if lomBit4Supported(c) { g = value & 0x04 != 0 ? g & ~0x10 : g | 0x10 }
                 w[0] = g
             case .vdeCosPhi: w[0] = value
-            case .readOnlyPlain, .unreadable: return false
+            case .readOnlyPlain:
+                guard !checked else { return false }
+                w[0] = insert(w[0], value)
+            case .unreadable:
+                guard !checked else { return false }
+                w[0] = value
             }
+            if checked, !w.allSatisfy({ (0...0xFFFF).contains($0) }) { return false }
             for (k, id) in ids.enumerated() { c.setRaw(id, UInt16(clamping: max(0, min(0xFFFF, w[k])))) }
             return true
         }
@@ -271,13 +306,13 @@ struct ValueCodec {
         case .setting:
             let s = scale(c)
             guard s != 0 else { return nil }
-            return Int((v / s - offset(c)).rounded(.toNearestOrEven))
+            return Self.int((v / s - offset(c)).rounded(.toNearestOrEven))
         case .flag: return v != 0 ? 1 : 0
         case .peer(let spec, let handler):
             let k = spec.codec
             if handler == .vdeCosPhi {
                 let f = v <= 0 ? -v : 2 - v
-                return Int((f * 32768).rounded(.toNearestOrEven))
+                return Self.int((f * 32768).rounded(.toNearestOrEven))
             }
             var x = v
             if k.reciprocal == true {
@@ -286,15 +321,32 @@ struct ValueCodec {
             }
             if !(k.reciprocal == true && k.offsetBeforeInvert == false) { x -= k.scale * k.offset }
             guard k.scale != 0 else { return nil }
-            return Int((x / k.scale).rounded(.toNearestOrEven))
+            return Self.int((x / k.scale).rounded(.toNearestOrEven))
         }
     }
 
-    /// Writes a physical value. Returns false if out of range (and nothing is written).
+    /// Int from a rounded Double, nil instead of a trap for NaN, infinities and absurd magnitudes.
+    private static func int(_ x: Double) -> Int? {
+        guard x.isFinite, abs(x) < 1e12 else { return nil }
+        return Int(x)
+    }
+
+    /// Writes a physical value. Returns false (and writes nothing) when the value, or the value after rounding to the
+    /// device step, is outside the range. The typed value may differ from a bound only by what the field displays
+    /// (half a unit of its last decimal), never by half a step.
     @discardableResult
     func setDisplay(_ v: Double, in c: inout DeviceConfiguration) -> Bool {
-        if let r = range(c), v < r.min - r.step / 2 || v > r.max + r.step / 2 { return false }
+        guard v.isFinite else { return false }
+        let r = range(c)
+        if let r {
+            let typed = 0.5 * pow(10, -Double(precision(c))) + 1e-9 * Swift.max(1, abs(v))
+            if v < r.min - typed || v > r.max + typed { return false }
+        }
         guard let raw = rawValue(forDisplay: v, c) else { return false }
+        if let r, let d = display(raw: raw, c) {
+            let eps = Swift.max(r.step * 1e-3, 1e-9 * Swift.max(1, abs(d)))
+            if d < r.min - eps || d > r.max + eps { return false }
+        }
         return setRaw(raw, in: &c)
     }
 
