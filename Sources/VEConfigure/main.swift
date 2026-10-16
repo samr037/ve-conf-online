@@ -5,7 +5,8 @@ import VEKit
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
-    private var windows: [UUID: (window: NSWindow, document: ConfigDocument, state: WindowState)] = [:]
+    /// `original` is the file as opened: saving over it needs an explicit confirmation.
+    private var windows: [UUID: (window: NSWindow, document: ConfigDocument, state: WindowState, original: URL)] = [:]
     private var welcome: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -56,7 +57,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func open(_ url: URL) {
-        if let existing = windows.values.first(where: { $0.document.url == url }) {
+        let target = Self.canonical(url)
+        if let existing = windows.values.first(where: { $0.document.url.map(Self.canonical) == target }) {
             existing.window.makeKeyAndOrderFront(nil)
             return
         }
@@ -71,12 +73,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }))
             w.title = doc.title
             w.representedURL = url
-            w.setFrameAutosaveName("ConfigWindow")
+            // One autosave name per file: a shared name is refused for every window after the first.
+            w.center()
+            if !w.setFrameAutosaveName("ConfigWindow \(target.path)") {
+                w.setFrameTopLeftPoint(NSPoint(x: w.frame.minX + 24, y: w.frame.maxY - 24))
+            }
             w.delegate = self
             w.isReleasedWhenClosed = false
             w.toolbarStyle = .unified
             w.makeKeyAndOrderFront(nil)
-            windows[doc.id] = (w, doc, state)
+            windows[doc.id] = (w, doc, state, url)
             NSDocumentController.shared.noteNewRecentDocumentURL(url)
             welcome?.close()
         } catch {
@@ -91,16 +97,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         windows.values.first { $0.window.isKeyWindow }?.document
     }
 
+    /// Resolves `.`/`..` and symlinks so one file opened through two paths is recognised.
+    static func canonical(_ url: URL) -> URL { url.standardizedFileURL.resolvingSymlinksInPath() }
+
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        guard let entry = windows.values.first(where: { $0.window === sender }), entry.document.isEdited else { return true }
+        guard let entry = windows.values.first(where: { $0.window === sender }) else { return true }
+        return confirmDiscard(entry.document)
+    }
+
+    /// ⌘Q: the same question as closing, for every edited window; Cancel (or a cancelled save) keeps the app running.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        for entry in windows.values where entry.document.isEdited {
+            entry.window.makeKeyAndOrderFront(nil)
+            if !confirmDiscard(entry.document) { return .terminateCancel }
+        }
+        return .terminateNow
+    }
+
+    /// Asks whether to save an edited document. Returns true when it may be closed (saved or discarded).
+    private func confirmDiscard(_ document: ConfigDocument) -> Bool {
+        guard document.isEdited else { return true }
         let alert = NSAlert()
-        alert.messageText = L("Save the changes to “%@”?", entry.document.title)
-        alert.informativeText = L("%@ settings were changed. If you don't save, they're lost.", "\(entry.document.changes.count)")
+        alert.messageText = L("Save the changes to “%@”?", document.title)
+        alert.informativeText = L("%@ settings were changed. If you don't save, they're lost.", "\(document.changes.count)")
         alert.addButton(withTitle: L("Save…"))
         alert.addButton(withTitle: L("Cancel"))
         alert.addButton(withTitle: L("Don't Save"))
         switch alert.runModal() {
-        case .alertFirstButtonReturn: return save(entry.document)
+        case .alertFirstButtonReturn: return save(document)
         case .alertThirdButtonReturn: return true
         default: return false
         }
@@ -126,17 +150,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc func saveDocument(_ sender: Any?) { if let d = keyDocument { save(d) } }
+
+    /// Save stays enabled while blocked (so ⌘S explains why); disabled only when there is nothing to save.
+    @objc func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        switch item.action {
+        case #selector(saveDocument(_:)): keyDocument.map { $0.canSave || $0.saveBlockReason != nil } ?? false
+        case #selector(exportSettings(_:)), #selector(printSettings(_:)): keyDocument != nil
+        default: true
+        }
+    }
     @objc func exportSettings(_ sender: Any?) { if let d = keyDocument { SettingsReport.export(d) } }
     @objc func printSettings(_ sender: Any?) { if let d = keyDocument { SettingsReport.print(d) } }
 
     @discardableResult
     func save(_ document: ConfigDocument) -> Bool {
+        guard document.canSave else {
+            if let reason = document.saveBlockReason {
+                let alert = NSAlert()
+                alert.messageText = L("This configuration can't be saved yet")
+                alert.informativeText = reason
+                alert.runModal()
+            } else {
+                NSSound.beep()
+            }
+            return false
+        }
         let panel = NSSavePanel()
+        panel.directoryURL = document.url?.deletingLastPathComponent()
         panel.allowedContentTypes = [SettingFileType.rvsc, SettingFileType.vsc].compactMap { $0 }
         let base = document.url?.deletingPathExtension().lastPathComponent ?? "configuration"
         panel.nameFieldStringValue = base.hasSuffix("-edited") ? base : base + "-edited"
         panel.message = L("Save a new file, then upload it through VRM. The original download stays untouched.")
         guard panel.runModal() == .OK, let url = panel.url else { return false }
+        if let original = windows[document.id]?.original, Self.canonical(url) == Self.canonical(original) {
+            let alert = NSAlert()
+            alert.alertStyle = .critical
+            alert.messageText = L("Replace the original download “%@”?", original.lastPathComponent)
+            alert.informativeText = L("This is the file you opened. Keep it as it is so you can go back to the inverter's current settings; save the edited configuration under a new name instead.")
+            alert.addButton(withTitle: L("Cancel"))
+            alert.addButton(withTitle: L("Replace Original"))
+            guard alert.runModal() == .alertSecondButtonReturn else { return false }
+        }
         do {
             try document.save(to: url)
             windows[document.id]?.window.representedURL = url
