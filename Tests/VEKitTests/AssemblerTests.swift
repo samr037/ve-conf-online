@@ -167,3 +167,38 @@ private final class Env: CalculatorHost {
         }
     }
 }
+
+@Suite struct WizardContentTests {
+    @Test func essSteps() throws {
+        let lib = try AssistantLibrary(contentsOf: Fixtures.library)
+        let ess = try #require(lib.package(id: 0x18C))
+        let text = WizardText(try #require(ess.scripts["en"]).bytes)
+        let radio = AssistantStepDefinition(id: "aidSystem", stepName: "System", kind: .radio, inSummary: true,
+                                            fields: [.init(precision: .decimals(0), unitCode: "N", min: 0, max: 5, defaultValue: 0)], buttons: 6)
+        let r = WizardStepContent(step: radio, text: text, format: [])
+        #expect(r.title == "Battery system")
+        #expect(r.options.count == 6)
+        #expect(r.options[4].count == 2)   // option with a continuation line
+        let entry = AssistantStepDefinition(id: "aidCap", stepName: "Capacity", kind: .entry, inSummary: true,
+                                            fields: [.init(precision: .decimals(0), unitCode: "N", min: 0, max: 60000, defaultValue: 200)], buttons: 0)
+        let e = WizardStepContent(step: entry, text: text, format: [])
+        #expect(e.entry.first?.contains(.field(index: 0, items: nil)) == true)
+    }
+
+    @Test func formatAndCodes() {
+        let s = WizardStepContent.format("See the %0:sESS manual%1:s now", [.str("\\IS\\"), .str("\\IL:http://ve3.nl/ess\\")])
+        let runs = WizardStepContent.runs(s)
+        #expect(runs.map(\.text).joined() == "See the ESS manual now")
+        #expect(runs.first { $0.text == "ESS manual" }?.link == "http://ve3.nl/ess")
+        #expect(WizardStepContent.runs("\\FS:1\\Note:\\FS:0\\ text").first?.bold == true)
+    }
+
+    @Test func fieldDisplay() {
+        let f = AssistantStepDefinition.Field(precision: .decimals(2), unitCode: "B", min: 0, max: 6000, defaultValue: 4600)
+        #expect(f.parse("46,5") == 4650)
+        #expect(f.parse("99") == 6000)
+        let t = AssistantStepDefinition.Field(precision: .time, unitCode: "N", min: 0, max: 1439, defaultValue: 60)
+        #expect(t.display(75) == "01:15")
+        #expect(t.parse("02:30") == 150)
+    }
+}

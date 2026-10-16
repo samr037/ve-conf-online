@@ -202,6 +202,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 state.section = section
                 await Snapshot.render(MainWindow(document: doc, state: state, save: {}), size: NSSize(width: 1240, height: 800),
                                       dark: dark, to: dir.appendingPathComponent("\(section.rawValue)-\(dark ? "dark" : "light").png"))
+                // Every sub-page (grid-code page, virtual-switch sheets), in a taller window to show whole forms.
+                let entries = SectionPages.entries(section, doc.ruleContext)
+                for entry in entries where entries.count > 1 || section != .assistants {
+                    let sub = WindowState()
+                    sub.section = section
+                    sub.subpage[section] = entry.id
+                    await Snapshot.render(MainWindow(document: doc, state: sub, save: {}), size: NSSize(width: 1240, height: 1400),
+                                          dark: dark, to: dir.appendingPathComponent("\(section.rawValue)-\(entry.id)-\(dark ? "dark" : "light").png"))
+                }
             }
             await Snapshot.render(WelcomeView(open: {}, openRecent: { _ in }), size: NSSize(width: 640, height: 420), dark: dark,
                                   to: dir.appendingPathComponent("welcome-\(dark ? "dark" : "light").png"))

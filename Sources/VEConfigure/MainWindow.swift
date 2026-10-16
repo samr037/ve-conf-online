@@ -47,6 +47,27 @@ enum Section: String, CaseIterable, Identifiable, Hashable {
 final class WindowState: ObservableObject {
     @Published var section: Section? = .general
     @Published var showsChanges = true
+    /// Selected sub-page per tab (Grid: grid-code page; Virtual switch: its five sheets).
+    @Published var subpage: [Section: String] = [:]
+    /// What the diagram lights. Observed only by the diagram, so hovering does not re-render the form.
+    let focus = DiagramFocus()
+}
+
+/// The diagram follows the group under the pointer; otherwise it shows the page's parts.
+final class DiagramFocus: ObservableObject {
+    @Published var hovered: Set<DiagramPart>?
+    @Published var page: Set<DiagramPart> = []
+}
+
+private struct FocusedDiagram: View {
+    @ObservedObject var focus: DiagramFocus
+    var fallback: Set<DiagramPart>
+    var model: String
+    var hasSecondInput: Bool
+
+    var body: some View {
+        SystemDiagram(lit: focus.hovered ?? (focus.page.isEmpty ? fallback : focus.page), model: model, hasSecondInput: hasSecondInput)
+    }
 }
 
 struct MainWindow: View {
@@ -61,10 +82,10 @@ struct MainWindow: View {
         } detail: {
             let section = state.section ?? .general
             VStack(spacing: 0) {
-                SystemDiagram(lit: section.lit, model: document.config.modelName,
-                              hasSecondInput: document.config.hasSecondACInput)
+                FocusedDiagram(focus: state.focus, fallback: section.lit, model: document.config.modelName,
+                               hasSecondInput: document.config.hasSecondACInput)
                 Divider()
-                SectionView(section: section, document: document)
+                SectionView(section: section, document: document, state: state)
             }
             .navigationTitle(section.title)
             .navigationSubtitle(document.title)
