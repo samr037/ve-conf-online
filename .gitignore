@@ -3,3 +3,4 @@ ghidra/proj/
 ghidra/out/
 .build/
 *.xcodeproj
+__pycache__/
