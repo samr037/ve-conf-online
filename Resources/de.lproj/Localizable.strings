@@ -195,3 +195,11 @@
 "Enter Full Screen" = "Vollbildmodus aktivieren";
 "Window" = "Fenster";
 "Minimize" = "Im Dock ablegen";
+"Device" = "Gerät";
+"Serial" = "Seriennummer";
+"Firmware" = "Firmware";
+"Read" = "Ausgelesen";
+"Exported" = "Exportiert";
+"VE.Bus configuration" = "VE.Bus-Konfiguration";
+"Export Settings…" = "Einstellungen exportieren…";
+"Print Settings…" = "Einstellungen drucken…";

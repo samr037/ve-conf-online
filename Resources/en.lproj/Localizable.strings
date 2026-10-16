@@ -195,3 +195,11 @@
 "Enter Full Screen" = "Enter Full Screen";
 "Window" = "Window";
 "Minimize" = "Minimize";
+"Device" = "Device";
+"Serial" = "Serial";
+"Firmware" = "Firmware";
+"Read" = "Read";
+"Exported" = "Exported";
+"VE.Bus configuration" = "VE.Bus configuration";
+"Export Settings…" = "Export Settings…";
+"Print Settings…" = "Print Settings…";

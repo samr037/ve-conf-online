@@ -11,6 +11,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = buildMenu()
         let args = CommandLine.arguments
+        if let i = args.firstIndex(of: "--capture"), i + 2 < args.count {
+            Task { await captureWindows(file: URL(fileURLWithPath: args[i + 1]), dir: URL(fileURLWithPath: args[i + 2])) }
+            return
+        }
         if let i = args.firstIndex(of: "--snapshot"), i + 2 < args.count {
             Task { await renderSnapshots(file: URL(fileURLWithPath: args[i + 1]), dir: URL(fileURLWithPath: args[i + 2])) }
             return
@@ -122,6 +126,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc func saveDocument(_ sender: Any?) { if let d = keyDocument { save(d) } }
+    @objc func exportSettings(_ sender: Any?) { if let d = keyDocument { SettingsReport.export(d) } }
+    @objc func printSettings(_ sender: Any?) { if let d = keyDocument { SettingsReport.print(d) } }
 
     @discardableResult
     func save(_ document: ConfigDocument) -> Bool {
@@ -174,6 +180,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             item(L("Open…"), #selector(openDocument(_:)), "o"),
             item(L("Save…"), #selector(saveDocument(_:)), "s"),
             .separator(),
+            item(L("Export Settings…"), #selector(exportSettings(_:)), "e", [.command, .shift]),
+            item(L("Print Settings…"), #selector(printSettings(_:)), "p"),
+            .separator(),
             item(L("Close"), #selector(NSWindow.performClose(_:)), "w"),
         ])
         submenu(L("Edit"), [
@@ -195,6 +204,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     // MARK: Snapshots (visual verification without screen-recording permission)
+
+    /// Real on-screen captures (window key, toolbar and materials drawn) with `screencapture -l`, for design review.
+    private func captureWindows(file: URL, dir: URL) async {
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        open(file)
+        guard let entry = windows.values.first else { exit(1) }
+        entry.document.setValue(2, 56.4, actionName: "")
+        entry.document.setFlag(5, true, actionName: "")
+        let w = entry.window
+        w.setContentSize(NSSize(width: 1240, height: 800))
+        w.center()
+        NSApp.activate(ignoringOtherApps: true)
+        // Activation from a background launch is refused; ask System Events-style through osascript instead.
+        let act = Process()
+        act.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        act.arguments = ["-e", "tell application id \"local.veconfigure.mac\" to activate"]
+        try? act.run(); act.waitUntilExit()
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        for dark in [false, true] {
+            NSApp.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+            var shots: [(Section, String?, String)] = Section.allCases.map { ($0, nil, "\($0.rawValue)-\(dark ? "dark" : "light")") }
+            for section in [Section.grid, .virtualSwitch] {
+                for page in SectionPages.entries(section, entry.document.ruleContext) {
+                    shots.append((section, page.id, "\(section.rawValue)-\(page.id)-\(dark ? "dark" : "light")"))
+                }
+            }
+            for (section, page, name) in shots {
+                entry.state.section = section
+                if let page { entry.state.subpage[section] = page }
+                w.makeKeyAndOrderFront(nil)
+                try? await Task.sleep(nanoseconds: 900_000_000)
+                let out = dir.appendingPathComponent("\(name).png").path
+                for _ in 0..<3 where !FileManager.default.fileExists(atPath: out) {
+                    let p = Process()
+                    p.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+                    p.arguments = ["-o", "-x", "-l", String(w.windowNumber), out]
+                    try? p.run()
+                    p.waitUntilExit()
+                    if !FileManager.default.fileExists(atPath: out) { try? await Task.sleep(nanoseconds: 500_000_000) }
+                }
+            }
+        }
+        exit(0)
+    }
 
     private func renderSnapshots(file: URL, dir: URL) async {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -231,6 +284,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 wizard.cancel()
             }
         }
+        if CommandLine.arguments.contains("--export") { print(SettingsReport.plainText(for: doc)) }
         exit(0)
     }
 }
