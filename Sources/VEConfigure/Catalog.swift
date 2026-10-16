@@ -34,7 +34,10 @@ final class Catalog {
     private init() {
         let file: CatalogFile
         do {
-            guard let url = Bundle.module.url(forResource: "catalog", withExtension: "json") else {
+            // In the .app the catalog sits in Contents/Resources; Bundle.module is only for `swift run` builds.
+            let inApp = Bundle.main.bundlePath.hasSuffix(".app")
+            guard let url = Bundle.main.url(forResource: "catalog", withExtension: "json")
+                ?? (inApp ? nil : Bundle.module.url(forResource: "catalog", withExtension: "json")) else {
                 throw CocoaError(.fileNoSuchFile)
             }
             file = try JSONDecoder().decode(CatalogFile.self, from: Data(contentsOf: url))

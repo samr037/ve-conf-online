@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key><string>VE Configure</string>
+	<key>CFBundleDisplayName</key><string>VE Configure</string>
+	<key>CFBundleIdentifier</key><string>local.veconfigure.mac</string>
+	<key>CFBundleExecutable</key><string>VEConfigure</string>
+	<key>CFBundleIconFile</key><string>AppIcon</string>
+	<key>CFBundlePackageType</key><string>APPL</string>
+	<key>CFBundleShortVersionString</key><string>0.1</string>
+	<key>CFBundleVersion</key><string>1</string>
+	<key>LSMinimumSystemVersion</key><string>14.0</string>
+	<key>NSHighResolutionCapable</key><true/>
+	<key>NSPrincipalClass</key><string>NSApplication</string>
+	<key>CFBundleDevelopmentRegion</key><string>en</string>
+	<key>CFBundleLocalizations</key><array><string>en</string><string>fr</string><string>de</string><string>es</string></array>
+	<key>NSHumanReadableCopyright</key><string>Independent project. Victron Energy, VE.Bus and VE Configure are trademarks of Victron Energy B.V.</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key><string>VE.Bus Configuration</string>
+			<key>CFBundleTypeRole</key><string>Editor</string>
+			<key>LSHandlerRank</key><string>Owner</string>
+			<key>LSItemContentTypes</key><array><string>local.veconfigure.rvsc</string><string>local.veconfigure.vsc</string></array>
+		</dict>
+	</array>
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key><string>local.veconfigure.rvsc</string>
+			<key>UTTypeDescription</key><string>Remote VE Configure file</string>
+			<key>UTTypeConformsTo</key><array><string>public.data</string></array>
+			<key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>rvsc</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key><string>local.veconfigure.vsc</string>
+			<key>UTTypeDescription</key><string>VE Configure settings file</string>
+			<key>UTTypeConformsTo</key><array><string>public.data</string></array>
+			<key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>vsc</string></array></dict>
+		</dict>
+	</array>
+</dict>
+</plist>
