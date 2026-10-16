@@ -56,6 +56,13 @@ public enum MetaGenerator {
         return out
     }
 
+    /// Nominal DC voltage, AC voltage and rated power (VA) derived like VE Configure's META constants.
+    public static func ratings(_ c: DeviceConfiguration) -> (dc: Int, ac: Int, power: Int) {
+        let k = constants(c).ordered
+        func v(_ n: String) -> Int { Int(k.first { $0.0 == n }?.1 ?? "") ?? 0 }
+        return (v("hwDC"), v("hwAC"), v("cRatedPower"))
+    }
+
     // MARK: Pieces
 
     private struct MetaList {

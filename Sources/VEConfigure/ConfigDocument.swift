@@ -25,6 +25,9 @@ final class ConfigDocument: ObservableObject, Identifiable {
     }
 
     var title: String { url?.lastPathComponent ?? "Configuration" }
+
+    /// Assistants programmed in this configuration (reconstructed lazily on first use).
+    lazy var assistants = AssistantsModel(document: self)
     var isEdited: Bool { config != baseline }
 
     // MARK: Editing

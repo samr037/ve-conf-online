@@ -76,6 +76,8 @@ final class AssistantAssembler: Assembler {
     var presentStep: ((AssistantStepPresentation) -> AssistantDecision)?
 
     private(set) var currentAssistant: String?
+    /// Every step bound in pass 1 (in order), with its final values: the source of the assistant summary.
+    var stepLog: [AssistantStepPresentation] = []
     private var readBackUsed = false
     private var usedBeforeDefinition: Set<String> = []
 
@@ -132,7 +134,7 @@ final class AssistantAssembler: Assembler {
 
     override func willStartPass(_ pass: Int) {
         global["$AssemblerPass"]?.value = .int(Int32(pass))
-        if pass == 1 { global["$AssistantStep"]?.value = .int(0) }
+        if pass == 1 { global["$AssistantStep"]?.value = .int(0); stepLog = [] }
     }
 
     override func willEnterSource(_ name: String) {
@@ -401,6 +403,8 @@ final class AssistantAssembler: Assembler {
             }
         }
         let after = labels.compactMap { table.answers[$0]?.value }
+        stepLog.append(AssistantStepPresentation(assistant: currentAssistant ?? "", step: step, labels: labels, values: after,
+                                                 format: format, buttons: buttons, isFirst: false))
         let result: Value = .list([.list(prevs.map(Value.int)), .list(before.map(Value.int)), .list(after.map(Value.int))])
         if let existing = scope.labels[id] { existing.value = result } else { scope.labels[id] = Label(value: result, flags: 0) }
         if handled {

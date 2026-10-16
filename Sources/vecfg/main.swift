@@ -161,6 +161,41 @@ case "diff" where args.count == 2: diff(args[0], args[1])
 case "set": set(args)
 case "assistants" where !args.isEmpty: assistants(args[0])
 case "reconstruct": reconstruct(args)
+case "wizard" where args.count >= 3:
+    // vecfg wizard <vfp> <file.rvsc> <Assistant>: walk the assistant's steps, answering Next with the current values.
+    do {
+        let lib = try AssistantLibrary(contentsOf: URL(fileURLWithPath: args[0]))
+        let c = load(args[1])
+        let composer = try AssistantComposer(library: lib)
+        composer.meta = MetaGenerator.source(for: c)
+        _ = try composer.reconstruct(image: c.data.assistantMemory)
+        let w = composer.wizard(for: args[2])
+        var n = 0
+        loop: while true {
+            switch w.status {
+            case .step(let p):
+                n += 1
+                let pkg = composer.items.first { $0.name == p.assistant }?.package
+                let text = pkg?.script(preferring: ["en"]).map { WizardText($0.bytes) }
+                let content = WizardStepContent(step: p.step, text: text, format: p.format)
+                let values = zip(p.step.fields, p.values).map { $0.display($1) }.joined(separator: ", ")
+                print("  \(n). [\(p.step.kind.rawValue)] \(content.title) — \(p.labels.joined(separator: ",")) = \(values)")
+                if n > 200 { print("  too many steps"); break loop }
+                var answer = p.values
+                for a in args where a.contains("=") {
+                    let kv = a.split(separator: "=").map(String.init)
+                    if let i = p.labels.firstIndex(of: kv[0]), let v = Int32(kv[1]) { answer[i] = v; print("     → \(kv[0]) = \(v)") }
+                }
+                w.next(answer)
+            case .finished(let r):
+                let img = composer.image(code: r.code, size: c.data.assistantMemory.count)
+                print("  finished after \(n) steps; image \(img == c.data.assistantMemory ? "IDENTICAL to the device" : "differs"); settings changed: \(r.vecChanges.keys.sorted())")
+                break loop
+            case .failed(let m): print("  failed: \(m.prefix(5))"); break loop
+            case .cancelled: print("  cancelled"); break loop
+            }
+        }
+    } catch { fail("\(error)") }
 case "install" where args.count >= 5:
     // vecfg install <vfp> <target.rvsc> <answers-from.rvsc> -o <out.rvsc>: replay another file's assistants onto a target.
     do {

@@ -88,7 +88,7 @@ public struct WizardStepContent: Equatable, Sendable {
         WizardLine(runs: runs(s == "_" ? "" : s))
     }
 
-    static func plain(_ s: String) -> String { runs(s).map(\.text).joined() }
+    public static func plain(_ s: String) -> String { runs(s).map(\.text).joined() }
 
     static func runs(_ s: String) -> [WizardRun] {
         var out: [WizardRun] = []

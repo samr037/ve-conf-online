@@ -146,6 +146,10 @@ private struct DeviceIdentity: View {
 
 extension DeviceConfiguration {
     /// Best-effort product name from the firmware type until the device table is decoded.
-    var modelName: String { "VE.Bus device" }
+    var modelName: String {
+        let r = MetaGenerator.ratings(self)
+        guard r.dc > 0, r.power > 0 else { return "VE.Bus inverter/charger" }
+        return "\(r.dc) V · \(r.power) VA"
+    }
     var hasSecondACInput: Bool { info.info(49)?.isSupported == true }
 }

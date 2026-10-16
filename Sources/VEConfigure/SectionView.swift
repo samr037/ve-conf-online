@@ -413,27 +413,3 @@ struct BatteryPresetSheet: View {
     }
 }
 
-// MARK: - Assistants (placeholder)
-
-/// Placeholder until the assistant wizard lands: the assistants programmed in this file, by ID.
-struct AssistantsPage: View {
-    @ObservedObject var document: ConfigDocument
-
-    var body: some View {
-        let ids = AssistantDirectory(document.config).ids
-        Form {
-            SwiftUI.Section("Installed assistants") {
-                if ids.isEmpty {
-                    Text("No assistants are programmed in this file.").foregroundStyle(.secondary)
-                } else {
-                    ForEach(Array(ids.enumerated()), id: \.offset) { i, id in
-                        LabeledContent("Assistant \(i + 1)") {
-                            Text(String(format: "ID 0x%04X (%d)", id, id)).font(.value)
-                        }
-                    }
-                }
-            }
-        }
-        .formStyle(.grouped)
-    }
-}

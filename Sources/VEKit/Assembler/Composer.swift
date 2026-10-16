@@ -11,12 +11,15 @@ public struct AssistantBuildResult: Sendable {
     public var messages: [AssemblerMessage]
     public var answers: [String: AnswerTable]
     public var cancelled: Bool
+    /// Steps bound during the build, in order (for summaries).
+    public var steps: [AssistantStepPresentation] = []
 }
 
 public final class AssistantComposer {
     public struct Item: Sendable {
         public var package: AssistantPackage
         public var name: String { package.baseName }
+        public init(package: AssistantPackage) { self.package = package }
     }
 
     public let library: AssistantLibrary
@@ -38,6 +41,8 @@ public final class AssistantComposer {
     }
 
     var allPackages: [AssistantPackage] { [framework.start] + items.map(\.package) + [framework.stop] }
+
+    public func package(named name: String) -> AssistantPackage? { allPackages.first { $0.baseName == name } }
 
     private func rootList() -> LineList {
         var lines = [SourceLine(Latin1.encode(" .SOURCE 'META'"))]
@@ -77,6 +82,7 @@ public final class AssistantComposer {
         answers = a.tables
         var r = AssistantBuildResult(success: verified, code: a.code, messages: a.messages, answers: a.tables, cancelled: false)
         r.vecChanges = Self.vecChanges(meta: meta, assembler: a)
+        r.steps = a.stepLog
         return r
     }
 
@@ -102,10 +108,12 @@ public final class AssistantComposer {
     /// Applies a successful build to a configuration: settings changed by the assistants (clamped to the device
     /// range, as FUN_00516420 does) and the new program image. `BatteryType_VEC` is returned for the caller,
     /// which owns the battery presets.
-    public func apply(_ result: AssistantBuildResult, to config: DeviceConfiguration) -> (DeviceConfiguration, batteryType: Int?) {
+    public func apply(_ result: AssistantBuildResult, to config: DeviceConfiguration,
+                      extraChanges: [String: Value] = [:]) -> (DeviceConfiguration, batteryType: Int?) {
         var c = config
         let targets = MetaGenerator.vecTargets(config)
-        for (name, value) in result.vecChanges {
+        let changes = extraChanges.merging(result.vecChanges) { _, new in new }
+        for (name, value) in changes {
             guard case .int(let v) = value, let target = targets[name] else { continue }
             switch target {
             case .setting(let id):
@@ -119,7 +127,7 @@ public final class AssistantComposer {
         let size = config.data.assistantMemory.count
         c.data.assistantMemory = items.isEmpty ? Self.emptyImage(size: size) : image(code: result.code, size: size)
         var battery: Int? = nil
-        if case .int(let b)? = result.vecChanges["BatteryType_VEC"] { battery = Int(b) }
+        if case .int(let b)? = changes["BatteryType_VEC"] { battery = Int(b) }
         return (c, battery)
     }
 
@@ -269,7 +277,10 @@ public final class AssistantWizard {
             tables = a.tables
             if ok {
                 composer.answers = tables
-                status = .finished(AssistantBuildResult(success: true, code: a.code, messages: a.messages, answers: tables, cancelled: false))
+                var r = AssistantBuildResult(success: true, code: a.code, messages: a.messages, answers: tables, cancelled: false)
+                r.vecChanges = AssistantComposer.vecChanges(meta: composer.meta, assembler: a)
+                r.steps = a.stepLog
+                status = .finished(r)
                 return
             }
             let first = a.messages.first(where: { $0.kind == .fatal })?.text

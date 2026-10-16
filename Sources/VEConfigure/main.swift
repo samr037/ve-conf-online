@@ -214,6 +214,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
             await Snapshot.render(WelcomeView(open: {}, openRecent: { _ in }), size: NSSize(width: 640, height: 420), dark: dark,
                                   to: dir.appendingPathComponent("welcome-\(dark ? "dark" : "light").png"))
+            // The ESS wizard at its battery-system step (step 2), and an entry step (step 6).
+            if let wizard = doc.assistants.wizard(for: 0) {
+                wizard.next()
+                await Snapshot.render(WizardView(model: wizard), size: NSSize(width: 600, height: 500), dark: dark,
+                                      to: dir.appendingPathComponent("wizard-radio-\(dark ? "dark" : "light").png"))
+                for _ in 0..<4 { wizard.next() }
+                await Snapshot.render(WizardView(model: wizard), size: NSSize(width: 600, height: 500), dark: dark,
+                                      to: dir.appendingPathComponent("wizard-entry-\(dark ? "dark" : "light").png"))
+                wizard.cancel()
+            }
         }
         exit(0)
     }
