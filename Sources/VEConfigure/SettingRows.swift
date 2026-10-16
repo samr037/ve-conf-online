@@ -353,6 +353,7 @@ struct CatalogRow: View {
                 Toggle(row.label, isOn: Binding(
                     get: { on != row.control.isInverted },
                     set: { new in
+                        if row.control.name == "MicroGridModeCheckBox", new, !Confirmations.allowMicrogrid() { return }
                         document.edit(L("Change %@", row.label), control: row.control.name) { c in
                             codec?.setRaw((new != row.control.isInverted) ? 1 : 0, in: &c)
                         }
@@ -584,6 +585,14 @@ struct CatalogChoiceRow: View {
 
     private func choose(_ value: Int) {
         guard let codec = row.codec else { return }
+        guard Confirmations.allowLOM(control: row.control.name, newRaw: value, config: row.config) else { return }
+        if row.control.name == "VirtualSwitchActionSelectRadioGroup", value != 0, (codec.raw(row.config) ?? 0) == 0 {
+            let count = document.assistants.installed.count
+            guard Confirmations.allowVirtualSwitch(assistantCount: count) else { return }
+            document.edit(L("Change %@", row.label), control: row.control.name) { codec.setRaw(value, in: &$0) }
+            if count > 0 { document.assistants.removeAll() }
+            return
+        }
         if row.control.name == "GridCodeComboBox" {
             document.edit(L("Change Grid Code"), control: row.control.name) { GridPages.apply(gridCode: value, to: &$0) }
             return

@@ -206,3 +206,13 @@
 "Step %@ of %@" = "Step %@ of %@";
 "Changing these settings requires a device reset after upload. The GX does it." = "Changing these settings requires a device reset after upload. The GX does it.";
 "Settings marked with the arrow require a device reset after upload. The GX does it." = "Settings marked with the arrow require a device reset after upload. The GX does it.";
+"Safety warning!" = "Safety warning!";
+"Disabling the LOM detection mechanism can result in dangerous AC voltages to be present on the AC input terminals of the Multi for an extended period of time when the AC input is 'unplugged'. It might be advisable to install anti-islanding protection equipment in the AC input line of the Multi/Quattro system to make sure that the system is disconnected from the grid in case of a mains failure! Disabling the LOM detection can be useful in installations where a generator (or other weak AC source) is connected to the AC input, because some generators become unstable when LOM detection is enabled. Disabling the LOM detection for an AC input will cause the device not to be compliant to the selected grid code on that AC input!" = "Disabling the LOM detection mechanism can result in dangerous AC voltages to be present on the AC input terminals of the Multi for an extended period of time when the AC input is 'unplugged'. It might be advisable to install anti-islanding protection equipment in the AC input line of the Multi/Quattro system to make sure that the system is disconnected from the grid in case of a mains failure! Disabling the LOM detection can be useful in installations where a generator (or other weak AC source) is connected to the AC input, because some generators become unstable when LOM detection is enabled. Disabling the LOM detection for an AC input will cause the device not to be compliant to the selected grid code on that AC input!";
+"Do you want to continue and disable the LOM detection?" = "Do you want to continue and disable the LOM detection?";
+"Disable LOM Detection" = "Disable LOM Detection";
+"Enabling microgrid operation will result in dangerous AC voltages to be present on the AC input terminals of the Multi! Use this option with care!" = "Enabling microgrid operation will result in dangerous AC voltages to be present on the AC input terminals of the Multi! Use this option with care!";
+"Enable Microgrid" = "Enable Microgrid";
+"Warning" = "Warning";
+"Enabling the virtual switch will disable the assistant functionality. All configured assistants will be removed! Continue?" = "Enabling the virtual switch will disable the assistant functionality. All configured assistants will be removed! Continue?";
+"Remove Assistants" = "Remove Assistants";
+"Remove All Assistants" = "Remove All Assistants";

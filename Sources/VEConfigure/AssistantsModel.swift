@@ -241,6 +241,14 @@ final class AssistantsModel: ObservableObject {
         program(actionName: L("Remove %@", name)) { (c.items, c.answers) = snapshot }
     }
 
+    /// Removes every assistant (enabling the virtual switch requires it).
+    func removeAll() {
+        guard let c = composer, !c.items.isEmpty else { return }
+        let snapshot = (c.items, c.answers)
+        c.items.removeAll()
+        program(actionName: L("Remove All Assistants")) { (c.items, c.answers) = snapshot }
+    }
+
     func move(_ index: Int, by delta: Int) {
         guard let c = composer, index + delta >= 0, index + delta < c.items.count else { return }
         let snapshot = (c.items, c.answers)
