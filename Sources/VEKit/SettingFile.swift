@@ -47,6 +47,8 @@ public struct SettingFile: Equatable, Sendable {
             let body = try r.bytes(end - 4 - r.offset)
             let stored = try r.u32()
             guard stored == Self.checksum(bytes[start..<end - 4]) else { throw FormatError.badChecksum(section: name) }
+            // Lookups take the first match by name; a second copy would be written back unedited.
+            guard !sections.contains(where: { $0.name == name }) else { throw FormatError.duplicateSection(name) }
             sections.append(Section(name: name, body: body))
         }
         self.sections = sections

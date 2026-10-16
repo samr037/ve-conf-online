@@ -6,6 +6,10 @@ public enum FormatError: Error, Equatable, CustomStringConvertible {
     case badMagic(String)
     case badChecksum(section: String)
     case decompression(String)
+    case duplicateSection(String)
+    case tooLarge(String, limit: Int)
+    case unsupportedVersion(section: String, version: UInt32)
+    case malformed(String)
 
     public var description: String {
         switch self {
@@ -13,6 +17,11 @@ public enum FormatError: Error, Equatable, CustomStringConvertible {
         case .badMagic(let what): "Not a \(what)."
         case .badChecksum(let name): "Section \(name) is corrupt (checksum mismatch)."
         case .decompression(let name): "Cannot decompress \(name)."
+        case .duplicateSection(let name): "Section \(name) appears more than once; the file is ambiguous."
+        case .tooLarge(let what, let limit): "\(what) is larger than \(limit) bytes."
+        case .unsupportedVersion(let section, let version):
+            "Section \(section) has version \(version), which this program does not know how to read."
+        case .malformed(let why): why
         }
     }
 }
@@ -101,7 +110,10 @@ enum Latin1: Unicode.Encoding {
     }
 }
 
-func inflate(_ input: [UInt8], name: String) throws -> [UInt8] {
+/// Upper bound for one decompressed library entry. Real `.vap` files are a few hundred KB.
+let inflateLimit = 16 << 20
+
+func inflate(_ input: [UInt8], name: String, limit: Int = inflateLimit) throws -> [UInt8] {
     var stream = z_stream()
     guard inflateInit_(&stream, ZLIB_VERSION, Int32(MemoryLayout<z_stream>.size)) == Z_OK else {
         throw FormatError.decompression(name)
@@ -110,6 +122,7 @@ func inflate(_ input: [UInt8], name: String) throws -> [UInt8] {
     var output = [UInt8]()
     var chunk = [UInt8](repeating: 0, count: 65536)
     var src = input
+    var overflow = false
     let status: Int32 = src.withUnsafeMutableBufferPointer { inBuf in
         stream.next_in = inBuf.baseAddress
         stream.avail_in = uInt(inBuf.count)
@@ -121,9 +134,11 @@ func inflate(_ input: [UInt8], name: String) throws -> [UInt8] {
                 return zlib.inflate(&stream, Z_NO_FLUSH)
             }
             output += chunk[0..<(chunk.count - Int(stream.avail_out))]
+            if output.count > limit { overflow = true; break }
         } while status == Z_OK
         return status
     }
+    if overflow { throw FormatError.tooLarge("Decompressed \(name)", limit: limit) }
     guard status == Z_STREAM_END else { throw FormatError.decompression(name) }
     return output
 }
