@@ -128,6 +128,8 @@ func reconstruct(_ args: [String]) {
         let composer = try AssistantComposer(library: lib)
         if let i = args.firstIndex(of: "--meta"), i + 1 < args.count {
             composer.meta = [UInt8](try Data(contentsOf: URL(fileURLWithPath: args[i + 1])))
+        } else {
+            composer.meta = MetaGenerator.source(for: c)
         }
         let r = try composer.reconstruct(image: c.data.assistantMemory)
         print("  assistants: " + ([composer.framework.start] + composer.items.map(\.package) + [composer.framework.stop])
@@ -159,5 +161,6 @@ case "diff" where args.count == 2: diff(args[0], args[1])
 case "set": set(args)
 case "assistants" where !args.isEmpty: assistants(args[0])
 case "reconstruct": reconstruct(args)
+case "meta" where !args.isEmpty: print(MetaGenerator.lines(for: load(args[0])).joined(separator: "\n"))
 default: fail(usage)
 }

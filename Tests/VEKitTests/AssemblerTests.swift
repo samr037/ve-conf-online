@@ -140,3 +140,30 @@ private final class Env: CalculatorHost {
         #expect(a.messages.contains { $0.text.hasPrefix("label value different") })
     }
 }
+
+@Suite struct AssistantEndToEndTests {
+    /// The user's ESS setup: recover the answers from the device program, re-assemble from those answers
+    /// alone, and get the exact 4096-byte image the inverter holds (code, ID directory, checksum).
+    @Test(arguments: ["s2.rvsc", "s5.rvsc"])
+    func reconstructAndRebuildByteIdentical(name: String) throws {
+        let config = try DeviceConfiguration(contentsOf: Fixtures.sample(name))
+        let library = try AssistantLibrary(contentsOf: Fixtures.library)
+        let composer = try AssistantComposer(library: library)
+        composer.meta = MetaGenerator.source(for: config)
+        let r = try composer.reconstruct(image: config.data.assistantMemory)
+        #expect(r.success, "\(r.messages)")
+        #expect(composer.items.map(\.package.id) == [0x18C])
+        #expect(composer.answers["ESS"]?.answers["alSystem"]?.value == 4)
+        let b = composer.build()
+        #expect(b.success, "\(b.messages)")
+        #expect(composer.image(code: b.code) == config.data.assistantMemory)
+    }
+
+    @Test func imageChecksumMatchesDevice() throws {
+        for name in ["s1.rvsc", "s2.rvsc", "s4.rvsc", "s5.rvsc"] {
+            let mem = try DeviceConfiguration(contentsOf: Fixtures.sample(name)).data.assistantMemory
+            let stored = UInt32(mem[4092]) | UInt32(mem[4093]) << 8 | UInt32(mem[4094]) << 16 | UInt32(mem[4095]) << 24
+            #expect(AssistantComposer.checksum(mem[0..<4092]) == stored)
+        }
+    }
+}
