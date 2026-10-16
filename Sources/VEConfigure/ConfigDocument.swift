@@ -34,8 +34,7 @@ final class ConfigDocument: ObservableObject, Identifiable {
 
     func setRaw(_ id: Int, _ value: UInt16, actionName: String) {
         let old = config.raw(id)
-        guard old != value else { return }
-        apply { $0.setRaw(id, value) }
+        guard old != value, apply({ $0.setRaw(id, value) }) else { return }
         registerUndo(actionName) { $0.setRaw(id, old, actionName: actionName) }
     }
 
@@ -46,21 +45,35 @@ final class ConfigDocument: ObservableObject, Identifiable {
 
     func setFlag(_ n: Int, _ on: Bool, actionName: String) {
         let old = config.flag(n)
-        guard old != on else { return }
-        apply { $0.setFlag(n, on) }
+        guard old != on, apply({ $0.setFlag(n, on) }) else { return }
         registerUndo(actionName) { $0.setFlag(n, old, actionName: actionName) }
     }
 
     /// One user edit: the change itself plus VE Configure's consequences (coupled values, side effects),
     /// undone as a single step.
+    ///
+    /// An edit that would change a grid-code protected value (other than back to its loaded value) is refused as a
+    /// whole: this app cannot verify the grid-code password, so protected settings can never be changed by mistake.
     func edit(_ actionName: String, control: String? = nil, _ change: (inout DeviceConfiguration) -> Void) {
         let old = config
         var c = config
         change(&c)
         guard c != old else { return }
         let found = Consequences.apply(old: old, new: &c, control: control)
+        let forbidden = Access.forbiddenEdits(old: old, new: c, ruleContext)
+        guard forbidden.isEmpty else {
+            notices.append(Notice(title: L("Protected by the grid code password"), message: Self.protectedMessage(forbidden, c)))
+            return
+        }
         replace(with: c, actionName: actionName)
         if !found.isEmpty { notices.append(contentsOf: found) }
+    }
+
+    static func protectedMessage(_ refs: [VariableRef], _ c: DeviceConfiguration) -> String {
+        let names = refs.prefix(4).map { r in
+            (r.kind == .flag ? Labels.flag(r.index) : Labels.setting(r.index, in: c))
+        }.joined(separator: ", ") + (refs.count > 4 ? "…" : "")
+        return L("It is not allowed to make this change in the settings without providing the grid code password! VE Configure for Mac cannot verify that password, so this change was not made: %@.", names)
     }
 
     /// Replaces the whole configuration (used by `edit`, presets and grid-code changes) with undo.
@@ -69,12 +82,6 @@ final class ConfigDocument: ObservableObject, Identifiable {
         guard old != new else { return }
         config = new
         registerUndo(actionName) { $0.replace(with: old, actionName: actionName) }
-    }
-
-    /// Records that the user typed the grid-code password. It cannot be checked offline: the device verifies it.
-    func enterGridPassword(_ password: String) {
-        guard !password.isEmpty else { return }
-        session.gridPasswordEntered = true
     }
 
     /// Restores one setting (or flag) to its loaded value — VE Configure's "Restore unmodified value".
@@ -86,10 +93,17 @@ final class ConfigDocument: ObservableObject, Identifiable {
         }
     }
 
-    private func apply(_ edit: (inout DeviceConfiguration) -> Void) {
+    /// Applies a raw change unless it touches a protected value; returns whether it was applied.
+    private func apply(_ edit: (inout DeviceConfiguration) -> Void) -> Bool {
         var c = config
         edit(&c)
+        let forbidden = Access.forbiddenEdits(old: config, new: c, ruleContext)
+        guard forbidden.isEmpty else {
+            notices.append(Notice(title: L("Protected by the grid code password"), message: Self.protectedMessage(forbidden, c)))
+            return false
+        }
         config = c
+        return true
     }
 
     private func registerUndo(_ name: String, _ undo: @escaping (ConfigDocument) -> Void) {
@@ -99,10 +113,52 @@ final class ConfigDocument: ObservableObject, Identifiable {
 
     // MARK: Saving
 
+    struct SaveError: LocalizedError {
+        var reason: String
+        var errorDescription: String? { reason }
+    }
+
+    /// Whether ⌘S may save: something changed, the grid parameters are consistent and no protected setting changed.
+    var canSave: Bool { saveBlockReason == nil }
+
+    /// Why saving is not possible right now (nil when it is).
+    var saveBlockReason: String? {
+        if changes.isEmpty { return L("There are no changes to save.") }
+        return integrityProblem
+    }
+
+    /// Problems that make the current configuration unfit to be uploaded to an inverter.
+    var integrityProblem: String? {
+        if !GridPages.paramsValid(config) {
+            return L("The grid code parameters do not match the selected grid code or belong to another firmware version. Select the grid code again to load its defaults before saving.")
+        }
+        let forbidden = Access.forbiddenChanges(ruleContext)
+        if !forbidden.isEmpty {
+            return L("Settings protected by the grid code password were changed: %@. Restore them before saving.",
+                     forbidden.prefix(4).map { $0.kind == .flag ? Labels.flag($0.index) : Labels.setting($0.index, in: config) }
+                        .joined(separator: ", ") + (forbidden.count > 4 ? "…" : ""))
+        }
+        return nil
+    }
+
+    /// VE Configure drops the unlock tokens of a file once they are more than 7200 s old (BareSettingData reader
+    /// FUN_004be27c). They are checked again at save time, so a stale token is never carried into a new file.
+    static let tokenLifetime: Int64 = 7200
+
+    static func dropStaleTokens(_ c: inout DeviceConfiguration, now: Int64 = Int64(Date().timeIntervalSince1970)) {
+        guard !c.data.tokens.isEmpty else { return }
+        let age = now - c.data.tokenTime
+        if age < 0 || age > tokenLifetime { c.data.tokens = [] }
+    }
+
     func save(to url: URL) throws {
-        try config.settingFile().write(to: url)
+        if let problem = integrityProblem { throw SaveError(reason: problem) }
+        var out = config
+        Self.dropStaleTokens(&out)
+        try out.settingFile().write(to: url)
         self.url = url
-        baseline = config
+        config = out
+        baseline = out
     }
 
     // MARK: Change list

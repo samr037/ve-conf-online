@@ -164,8 +164,6 @@ enum SectionPages {
 
 /// UI state of the open page (sheets), kept outside the configuration.
 final class PageUIState: ObservableObject {
-    @Published var askingPassword = false
-    @Published var password = ""
     @Published var showingPresets = false
     @Published var presetID: String?
 }
@@ -202,7 +200,6 @@ struct SectionView: View {
                 emptyPage
             }
         }
-        .sheet(isPresented: $ui.askingPassword) { PasswordSheet(document: document, ui: ui) }
         .sheet(isPresented: $ui.showingPresets) { BatteryPresetSheet(document: document, ui: ui) }
         .alert(document.notices.first?.title ?? "", isPresented: Binding(
             get: { !document.notices.isEmpty },
@@ -304,56 +301,21 @@ struct CatalogPageView: View {
 
     @ViewBuilder private var passwordBanner: some View {
         SwiftUI.Section {
-            if document.session.gridPasswordEntered {
-                Label(L("Grid code password entered. It is checked by the device when you upload the file."), systemImage: "lock.open")
+            if Access.gridCodeNeedsPassword(ctx) {
+                Label(L("Grid code settings are protected by the grid code password. VE Configure for Mac cannot verify that password, so these settings are read-only here. Use VE Configure to change them."),
+                      systemImage: "lock.fill")
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if page.name == GridPages.selectionPage {
+                Label(L("No grid code was selected in this file, so the initial selection does not require a password. Make sure to choose the correct country / standard: once sent to the device, a password is required to change or disable it."),
+                      systemImage: "lock.open")
                     .foregroundStyle(.secondary)
-            } else if Access.gridCodeNeedsPassword(ctx) {
-                HStack {
-                    Label(L("Grid code settings are protected. As in VE Configure, changing them requires the grid code password from your installer or Victron."),
-                          systemImage: "lock.fill")
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer()
-                    Button(L("Unlock with Password…")) { ui.askingPassword = true }
-                }
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
 }
 
 // MARK: - Sheets
-
-struct PasswordSheet: View {
-    @ObservedObject var document: ConfigDocument
-    @ObservedObject var ui: PageUIState
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label(L("Grid Code Password"), systemImage: "lock.fill").font(.headline)
-            Text(L("Changing the grid code or its parameters requires the grid code password. This app cannot verify it offline: the device checks it when the file is uploaded, and rejects protected changes if it is wrong."))
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            SecureField(L("Password"), text: $ui.password)
-                .textFieldStyle(.roundedBorder)
-                .onSubmit(unlock)
-            HStack {
-                Spacer()
-                Button(L("Cancel"), role: .cancel) { ui.password = ""; ui.askingPassword = false }
-                    .keyboardShortcut(.cancelAction)
-                Button(L("Unlock"), action: unlock)
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(ui.password.isEmpty)
-            }
-        }
-        .padding(20)
-        .frame(width: 420)
-    }
-
-    private func unlock() {
-        guard !ui.password.isEmpty else { return }
-        document.enterGridPassword(ui.password)
-        ui.password = ""
-        ui.askingPassword = false
-    }
-}
 
 /// VE Configure's battery type dialog (TBatteryDefaultForm): presets in this system's voltage.
 struct BatteryPresetSheet: View {
