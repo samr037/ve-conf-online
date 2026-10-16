@@ -74,6 +74,34 @@ func walkWizard(_ w: AssistantWizard, answers: [String: Int32] = [:], limit: Int
         #expect(out.raw(batteryCapacityID) == 96)
     }
 
+    /// Audit #5: reconfiguring ESS from a lead-acid system to lithium resets the DC cut-off curve to the lithium
+    /// defaults (`alSetCurveDefault .ALS 1`, a label no `.AUE` binds).
+    @Test func leadToLithiumGetsLithiumCutOffCurve() throws {
+        let lib = try assistantLibrary()
+        let s1 = try sampleConfig("s1")
+        let c = try AssistantComposer(library: lib)
+        c.meta = MetaGenerator.source(for: s1)
+        c.items = [.init(package: try #require(lib.latest.first { $0.baseName == "ESS" }))]
+        let (first, _) = walkWizard(c.wizard(for: "ESS"), answers: ["alSystem": 0])
+        #expect(first != nil)
+        let lead = ["alDC0", "alDC1", "alDC2", "alDC3"].map { c.answers["ESS"]?.answers[$0]?.value }
+        #expect(lead == [4800, 4500, 4220, 4000])
+        var shownCurve: [Int32] = []
+        let w = c.wizard(for: "ESS")
+        var n = 0
+        while n < 60, case .step(let p) = w.status {
+            n += 1
+            var v = p.values
+            if p.step.id == "aidSystem" { v = [4] }
+            if p.labels.contains("alDC0") { shownCurve = p.values }
+            w.next(v)
+        }
+        guard case .finished = w.status else { Issue.record("wizard did not finish: \(w.status)"); return }
+        let li = ["alDC0", "alDC1", "alDC2", "alDC3"].map { c.answers["ESS"]?.answers[$0]?.value }
+        #expect(li == [5200, 5000, 4920, 4800])
+        #expect(shownCurve.isEmpty || shownCurve == [5200, 5000, 4920, 4800])
+    }
+
     /// Straight Next through an installed assistant changes nothing: same answers, byte-identical program.
     @Test func replayWithoutChangesIsIdentical() throws {
         let lib = try assistantLibrary()

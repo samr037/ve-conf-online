@@ -469,6 +469,9 @@ final class AssistantAssembler: Assembler {
         var rec = t.answers[name] ?? AssistantAnswer(value: 0, previous: Int32.max)
         rec.pending = pending
         rec.pendingAlsoPrevious = alsoPrevious
+        // FUN_0050215c: an integer is stored as the value at once (kind 5 → +8), not only when an .AUE binds the
+        // label; labels that no .AUE binds (alSetCurveDefault) take effect through this.
+        if case .literal(let i) = pending { rec.value = i }
         t.answers[name] = rec
         table = t
     }
