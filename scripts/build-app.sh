@@ -11,7 +11,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/"
-cp Sources/VEConfigure/Resources/catalog.json "$APP/Contents/Resources/"
+cp Sources/VEConfigure/Resources/catalog.json Sources/VEConfigure/Resources/catalog-strings.json "$APP/Contents/Resources/"
 for l in Resources/*.lproj; do [ -e "$l" ] && cp -R "$l" "$APP/Contents/Resources/"; done
 cp "$BIN" "$APP/Contents/MacOS/VEConfigure"
 codesign --force --sign - --identifier local.veconfigure.mac "$APP"

@@ -15,12 +15,12 @@ struct WelcomeView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("VE Configure")
                         .font(.system(size: 26, weight: .semibold))
-                    Text("Configure Victron VE.Bus inverter/chargers from your Mac: settings, grid codes, virtual switch and Assistants.")
+                    Text(L("Configure Victron VE.Bus inverter/chargers from your Mac: settings, grid codes, virtual switch and Assistants."))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Button(action: open) {
-                    Label("Open Configuration…", systemImage: "folder")
+                    Label(L("Open Configuration…"), systemImage: "folder")
                 }
                 .controlSize(.large)
                 .buttonStyle(.borderedProminent)
@@ -33,12 +33,12 @@ struct WelcomeView: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 14) {
-                Text("Get your configuration file")
+                Text(L("Get your configuration file"))
                     .font(.headline)
-                Step(n: 1, text: "On VRM, open your installation, then Device list › Remote VE Configure.")
-                Step(n: 2, text: "Download the .rvsc file and open it here.")
-                Step(n: 3, text: "Change settings or run Assistants, then save a new file.")
-                Step(n: 4, text: "Upload it on the same VRM page. The GX sends it to the inverter.")
+                Step(n: 1, text: L("On VRM, open your installation, then Device list › Remote VE Configure."))
+                Step(n: 2, text: L("Download the .rvsc file and open it here."))
+                Step(n: 3, text: L("Change settings or run Assistants, then save a new file."))
+                Step(n: 4, text: L("Upload it on the same VRM page. The GX sends it to the inverter."))
                 Spacer(minLength: 0)
                 RecentFiles(openRecent: openRecent)
             }
@@ -71,7 +71,7 @@ private struct RecentFiles: View {
         let recents = Array(NSDocumentController.shared.recentDocumentURLs.prefix(3))
         if !recents.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Recent").font(.caption).foregroundStyle(.secondary)
+                Text(L("Recent")).font(.caption).foregroundStyle(.secondary)
                 ForEach(recents, id: \.self) { url in
                     Button(url.lastPathComponent) { openRecent(url) }
                         .buttonStyle(.link)

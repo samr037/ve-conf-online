@@ -24,7 +24,7 @@ final class ConfigDocument: ObservableObject, Identifiable {
         self.url = url
     }
 
-    var title: String { url?.lastPathComponent ?? "Configuration" }
+    var title: String { url?.lastPathComponent ?? L("Configuration") }
 
     /// Assistants programmed in this configuration (reconstructed lazily on first use).
     lazy var assistants = AssistantsModel(document: self)
@@ -80,8 +80,8 @@ final class ConfigDocument: ObservableObject, Identifiable {
     /// Restores one setting (or flag) to its loaded value — VE Configure's "Restore unmodified value".
     func revert(_ change: Change) {
         switch change.target {
-        case .setting(let id): setRaw(id, baseline.raw(id), actionName: "Restore \(change.label)")
-        case .flag(let n): setFlag(n, baseline.flag(n), actionName: "Restore \(change.label)")
+        case .setting(let id): setRaw(id, baseline.raw(id), actionName: L("Restore %@", change.label))
+        case .flag(let n): setFlag(n, baseline.flag(n), actionName: L("Restore %@", change.label))
         case .assistants: break
         }
     }
@@ -128,7 +128,7 @@ final class ConfigDocument: ObservableObject, Identifiable {
                               before: Catalog.shared.formatFlag(n, baseline.flag(n)), after: Catalog.shared.formatFlag(n, config.flag(n))))
         }
         if config.data.assistantMemory != baseline.data.assistantMemory {
-            out.append(Change(target: .assistants, label: "Assistants", before: "", after: "Reprogrammed"))
+            out.append(Change(target: .assistants, label: L("Assistants"), before: "", after: L("Reprogrammed")))
         }
         return out
     }
@@ -163,7 +163,7 @@ enum Labels {
         if (128...191).contains(id) { return String(format: "0x%04X", c.raw(id)) }
         if let codec = ValueCodec(setting: id), codec.isSupported(c) { return codec.formatted(c) }
         guard let info = c.info.info(id), info.isSupported else { return "\(c.raw(id))" }
-        let unit = Catalog.shared.unit(forSetting: id).map { " " + $0 } ?? ""
+        let unit = Catalog.shared.unit(forSetting: id).map { " " + L10n.catalog($0) } ?? ""
         return number(info.display(c.raw(id)), step: info.step) + unit
     }
 

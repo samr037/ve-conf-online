@@ -18,7 +18,7 @@ struct ChangeList: View {
                     ForEach(changes) { change in
                         row(change)
                             .contextMenu {
-                                Button("Restore Loaded Value") { document.revert(change) }
+                                Button(L("Restore Loaded Value")) { document.revert(change) }
                                     .disabled(change.target == .assistants)
                             }
                     }
@@ -33,9 +33,9 @@ struct ChangeList: View {
 
     private func header(count: Int) -> some View {
         HStack(alignment: .firstTextBaseline) {
-            Text("Changes").font(.headline)
+            Text(L("Changes")).font(.headline)
             Spacer()
-            Text(count == 0 ? "None" : "\(count)")
+            Text(count == 0 ? L("None") : "\(count)")
                 .font(.subheadline.monospacedDigit())
                 .foregroundStyle(count == 0 ? Color.secondary : Theme.changed)
         }
@@ -46,9 +46,9 @@ struct ChangeList: View {
     private var empty: some View {
         VStack(spacing: 6) {
             Spacer()
-            Text("No changes yet")
+            Text(L("No changes yet"))
                 .font(.callout.weight(.medium))
-            Text("Every setting you change appears here with its previous value, so you can review it before saving.")
+            Text(L("Every setting you change appears here with its previous value, so you can review it before saving."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -65,7 +65,7 @@ struct ChangeList: View {
                 if !c.before.isEmpty {
                     Text(c.before).strikethrough().foregroundStyle(.secondary)
                     Image(systemName: "arrow.right").font(.caption2).foregroundStyle(.tertiary)
-                        .accessibilityLabel("changed to")
+                        .accessibilityLabel(L("changed to"))
                 }
                 Text(c.after).foregroundStyle(Theme.changed).fontWeight(.medium)
             }
@@ -76,12 +76,12 @@ struct ChangeList: View {
 
     private func footer(changes: [ConfigDocument.Change]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Upload the saved file through VRM (Remote VE Configure). The GX resets the inverter if needed.")
+            Text(L("Upload the saved file through VRM (Remote VE Configure). The GX resets the inverter if needed."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Button(action: save) {
-                Text("Save…").frame(maxWidth: .infinity)
+                Text(L("Save…")).frame(maxWidth: .infinity)
             }
             .controlSize(.large)
             .keyboardShortcut("s", modifiers: .command)

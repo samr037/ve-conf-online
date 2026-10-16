@@ -32,7 +32,7 @@ struct NumberSettingRow: View {
                 }
             } label: {
                 SettingLabel(text: label, changed: isChanged, help: help,
-                             detail: "Range \(Labels.number(info.display(info.minRaw), step: info.step)) – \(Labels.number(info.display(info.maxRaw), step: info.step))\(unit.map { " " + $0 } ?? ""), default \(Labels.number(info.display(info.defaultRaw), step: info.step))")
+                             detail: L("Range %@ – %@, default %@", Labels.number(info.display(info.minRaw), step: info.step), Labels.number(info.display(info.maxRaw), step: info.step) + (unit.map { " " + $0 } ?? ""), Labels.number(info.display(info.defaultRaw), step: info.step)))
             }
             .contextMenu { RestoreMenu(document: document, target: .setting(id), label: label) }
         }
@@ -45,13 +45,13 @@ struct NumberSettingRow: View {
         guard let text = field.text else { return }
         let normalized = text.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespaces)
         guard let v = Double(normalized) else { NSSound.beep(); return }
-        document.setValue(id, v, actionName: "Change \(label)")
+        document.setValue(id, v, actionName: L("Change %@", label))
     }
 
     private func step(_ info: SettingInfo, _ delta: Int) {
         let raw = Int(document.config.raw(id)) + delta
         guard raw >= Int(info.minRaw), raw <= Int(info.maxRaw) else { NSSound.beep(); return }
-        document.setRaw(id, UInt16(raw), actionName: "Change \(label)")
+        document.setRaw(id, UInt16(raw), actionName: L("Change %@", label))
     }
 }
 
@@ -75,7 +75,7 @@ struct FlagToggleRow: View {
         if document.config.supportsFlag(bit) {
             Toggle(isOn: Binding(
                 get: { document.config.flag(bit) != inverted },
-                set: { document.setFlag(bit, $0 != inverted, actionName: "Change \(label)") }
+                set: { document.setFlag(bit, $0 != inverted, actionName: L("Change %@", label)) }
             )) {
                 SettingLabel(text: label, changed: isChanged, help: help, detail: nil)
             }
@@ -99,7 +99,7 @@ struct ChoiceSettingRow: View {
         if document.config.info.info(id)?.isSupported == true {
             Picker(selection: Binding(
                 get: { document.config.raw(id) },
-                set: { document.setRaw(id, $0, actionName: "Change \(label)") }
+                set: { document.setRaw(id, $0, actionName: L("Change %@", label)) }
             )) {
                 ForEach(options, id: \.value) { Text($0.title).tag($0.value) }
             } label: {
@@ -124,7 +124,7 @@ struct SettingLabel: View {
                 .frame(width: 3, height: 14)
                 .accessibilityHidden(true)
             Text(text)
-            if changed { Text("changed").font(.caption2).foregroundStyle(Theme.changed).accessibilityHidden(false) }
+            if changed { Text(L("changed")).font(.caption2).foregroundStyle(Theme.changed).accessibilityHidden(false) }
         }
         .help([help, detail].compactMap { $0 }.joined(separator: "\n\n"))
     }
@@ -137,17 +137,22 @@ struct RestoreMenu: View {
 
     var body: some View {
         if let change = document.changes.first(where: { $0.target == target }) {
-            Button("Restore Loaded Value (\(change.before))") { document.revert(change) }
+            Button(L("Restore Loaded Value (%@)", change.before)) { document.revert(change) }
         } else {
-            Button("Restore Loaded Value") {}.disabled(true)
+            Button(L("Restore Loaded Value")) {}.disabled(true)
         }
     }
 }
 
 // MARK: - Catalog-driven rows
 
-/// Resolves a runtime caption: the first variant whose `when` holds, else the literal.
+/// A runtime caption as displayed, in the interface language.
 func resolveText(_ t: CatalogText?, _ ctx: RuleContext) -> String? {
+    resolveRawText(t, ctx).map { L10n.catalog($0) }
+}
+
+/// Resolves a runtime caption (English): the first variant whose `when` holds, else the literal.
+func resolveRawText(_ t: CatalogText?, _ ctx: RuleContext) -> String? {
     guard let t else { return nil }
     if let variants = t.variants, !variants.isEmpty {
         for v in variants {
@@ -177,11 +182,11 @@ struct RowState {
     var config: DeviceConfiguration { ctx.config }
 
     var label: String {
-        if let o = ["StopChargeBelowTBatSettingEdit": "Battery temperature limit"][control.name] { return o }
-        let l = resolveText(control.label ?? control.caption, ctx)
-        if let l, l.count > 3, l != "for" { return l }
-        if l == "for" { return control.cleanDescription.map { "Delay — " + $0 } ?? "Delay" }
-        return control.cleanDescription ?? control.help?.title ?? l ?? control.name
+        if control.name == "StopChargeBelowTBatSettingEdit" { return L("Battery temperature limit") }
+        let l = resolveRawText(control.label ?? control.caption, ctx)
+        if let l, l.count > 3, l != "for" { return L10n.catalog(l) }
+        if l == "for" { return control.cleanDescription.map { L("Delay — %@", $0) } ?? L("Delay") }
+        return control.cleanDescription ?? L10n.catalog(control.help?.title) ?? l.map(L10n.catalog) ?? control.name
     }
 
     var locked: Bool { Access.isLocked(control, ctx) }
@@ -195,20 +200,20 @@ struct RowState {
     var unit: String? {
         guard var u = control.unit, !u.isEmpty else { return nil }
         if u == "Hr" { u = "h" } else if u == "seconds" { u = "s" }
-        return u
+        return L10n.catalog(u)
     }
 
     /// Range, default and step line for the tooltip and the info popover.
     var rangeDetail: String? {
         guard let k = codec, control.kind == .number, let r = k.range(config) else { return nil }
         let u = unit.map { " " + $0 } ?? ""
-        var parts = ["Range \(k.format(r.min, config)) – \(k.format(r.max, config))\(u)"]
-        if let d = r.defaultValue { parts.append("default \(k.format(d, config))\(u)") }
-        if r.step > 0 { parts.append("step \(k.format(r.step, config))") }
+        var parts = [L("Range %@ – %@", k.format(r.min, config), k.format(r.max, config) + u)]
+        if let d = r.defaultValue { parts.append(L("default %@", k.format(d, config) + u)) }
+        if r.step > 0 { parts.append(L("step %@", k.format(r.step, config))) }
         return parts.joined(separator: ", ")
     }
 
-    var helpText: String? { control.help?.text.map(Catalog.reflow) }
+    var helpText: String? { control.help?.text.map { L10n.catalog(Catalog.reflow($0)) } }
 
     var tooltip: String {
         var parts: [String] = []
@@ -235,17 +240,17 @@ struct CatalogLabel: View {
                 Image(systemName: "lock.fill")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .help("Protected by the grid code password")
-                    .accessibilityLabel("Locked, grid code password required")
+                    .help(L("Protected by the grid code password"))
+                    .accessibilityLabel(L("Locked, grid code password required"))
             }
             if row.resetRequired {
                 Image(systemName: "arrow.clockwise.circle")
                     .font(.caption)
                     .foregroundStyle(Theme.nonDefault)
-                    .help("A change requires a device reset after upload")
-                    .accessibilityLabel("Requires reset")
+                    .help(L("A change requires a device reset after upload"))
+                    .accessibilityLabel(L("Requires reset"))
             }
-            if row.changed { Text("changed").font(.caption2).foregroundStyle(Theme.changed) }
+            if row.changed { Text(L("changed")).font(.caption2).foregroundStyle(Theme.changed) }
         }
         .help(row.tooltip)
     }
@@ -261,12 +266,12 @@ struct InfoButton: View {
             Image(systemName: "info.circle").foregroundStyle(.secondary)
         }
         .buttonStyle(.borderless)
-        .help("About this setting")
-        .accessibilityLabel("About \(row.label)")
+        .help(L("About this setting"))
+        .accessibilityLabel(L("About %@", row.label))
         .popover(isPresented: $popover.on, arrowEdge: .trailing) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(row.control.help?.title ?? row.label).font(.headline)
+                    Text(L10n.catalog(row.control.help?.title) ?? row.label).font(.headline)
                     if let d = row.control.cleanDescription, d != row.label {
                         Text(d).font(.callout).foregroundStyle(.secondary)
                     }
@@ -283,12 +288,12 @@ struct InfoButton: View {
                         Label(Access.infoText["password"]!, systemImage: "lock").font(.callout)
                     }
                     if let codec = row.codec, !codec.isEditable {
-                        Label("This value is derived from several grid words by a VE Configure handler that this app does not reproduce yet. It is shown read-only.", systemImage: "eye")
+                        Label(L("This value is derived from several grid words by a VE Configure handler that this app does not reproduce yet. It is shown read-only."), systemImage: "eye")
                             .font(.callout)
                     }
                     let names = Access.refs(of: row.control).map(\.name).filter { !$0.isEmpty }
                     if !names.isEmpty {
-                        Text("Stored in " + names.joined(separator: ", "))
+                        Text(L("Stored in %@", names.joined(separator: ", ")))
                             .font(.caption.monospaced()).foregroundStyle(.tertiary).textSelection(.enabled)
                     }
                 }
@@ -322,14 +327,14 @@ struct CatalogRow: View {
         }
         .contextMenu {
             if !row.control.settingTargets.isEmpty || row.control.variable?.kind == .flag {
-                Button("Restore Loaded Value") { restore() }.disabled(!row.changed)
+                Button(L("Restore Loaded Value")) { restore() }.disabled(!row.changed)
             }
         }
     }
 
     private func restore() {
         let base = row.ctx.baseline
-        document.edit("Restore \(row.label)", control: row.control.name) { c in
+        document.edit(L("Restore %@", row.label), control: row.control.name) { c in
             if let v = row.control.variable, v.kind == .flag, let n = v.index { c.setFlag(n, base.flag(n)) }
             for id in row.control.settingTargets { c.setRaw(id, base.raw(id)) }
         }
@@ -345,7 +350,7 @@ struct CatalogRow: View {
                 Toggle(row.label, isOn: Binding(
                     get: { on != row.control.isInverted },
                     set: { new in
-                        document.edit("Change \(row.label)", control: row.control.name) { c in
+                        document.edit(L("Change %@", row.label), control: row.control.name) { c in
                             codec?.setRaw((new != row.control.isInverted) ? 1 : 0, in: &c)
                         }
                     }))
@@ -366,7 +371,7 @@ struct CatalogRow: View {
                 Toggle(row.label, isOn: Binding(
                     get: { on },
                     set: { new in
-                        document.edit("Change \(row.label)", control: row.control.name) { c in
+                        document.edit(L("Change %@", row.label), control: row.control.name) { c in
                             LocalControls.setChecked(row.control.name, new, in: &c)
                         }
                     }))
@@ -382,14 +387,14 @@ struct CatalogRow: View {
         return LabeledContent {
             Picker(row.label, selection: Binding(
                 get: { LocalControls.vs2OffAction(row.config) },
-                set: { i in document.edit("Change stop condition", control: row.control.name) { LocalControls.setVs2OffAction(i, in: &$0) } }
+                set: { i in document.edit(L("Change stop condition"), control: row.control.name) { LocalControls.setVs2OffAction(i, in: &$0) } }
             )) {
-                ForEach(items.indices, id: \.self) { i in Text(items[i].text.fallback).tag(i) }
+                ForEach(items.indices, id: \.self) { i in Text(L10n.catalog(items[i].text.fallback)).tag(i) }
             }
             .labelsHidden()
             .fixedSize()
             .disabled(!editable)
-        } label: { Text("Stop condition") }
+        } label: { Text(L("Stop condition")) }
     }
 
     @ViewBuilder private var button: some View {
@@ -397,13 +402,13 @@ struct CatalogRow: View {
         case "BatteryTypeButton":
             LabeledContent {
                 HStack(spacing: 8) {
-                    Button("Battery Presets…", action: openPresets).disabled(!row.enabled)
+                    Button(L("Battery Presets…"), action: openPresets).disabled(!row.enabled)
                     InfoButton(row: row)
                 }
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Battery type")
-                    Text(BatteryPresets.matching(row.config)?.name ?? "No corresponding preset")
+                    Text(L("Battery type"))
+                    Text(BatteryPresets.matching(row.config).map { L10n.catalog($0.name) } ?? L("No corresponding preset"))
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
@@ -415,11 +420,11 @@ struct CatalogRow: View {
     }
 
     private var note: some View {
-        let text = stripMarkup(resolveText(row.control.label ?? row.control.caption, row.ctx) ?? row.control.text ?? "")
+        let text = stripMarkup(resolveRawText(row.control.label ?? row.control.caption, row.ctx) ?? row.control.text ?? "")
         let warning = row.control.name.localizedCaseInsensitiveContains("warning") || row.control.name.contains("Error")
             || text.localizedCaseInsensitiveContains("not ") && text.count < 80
         return Label {
-            Text(Catalog.cleanCaption(text)).font(.callout).fixedSize(horizontal: false, vertical: true)
+            Text(L10n.catalog(Catalog.cleanCaption(text))).font(.callout).fixedSize(horizontal: false, vertical: true)
         } icon: {
             Image(systemName: warning ? "exclamationmark.triangle.fill" : "info.circle")
                 .foregroundStyle(warning ? Theme.warning : .secondary)
@@ -469,7 +474,7 @@ struct CatalogNumberRow: View {
         let normalized = text.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespaces)
         guard let v = Double(normalized) else { NSSound.beep(); return }
         var ok = true
-        document.edit("Change \(row.label)", control: row.control.name) { c in ok = codec.setDisplay(v, in: &c) }
+        document.edit(L("Change %@", row.label), control: row.control.name) { c in ok = codec.setDisplay(v, in: &c) }
         if !ok { NSSound.beep() }
     }
 
@@ -480,7 +485,7 @@ struct CatalogNumberRow: View {
         let next = raw + (up == (direction > 0) ? 1 : -1)
         guard let v = codec.display(raw: next, row.config) else { return }
         if let r = codec.range(row.config), v < r.min - 1e-9 || v > r.max + 1e-9 { NSSound.beep(); return }
-        document.edit("Change \(row.label)", control: row.control.name) { c in codec.setRaw(next, in: &c) }
+        document.edit(L("Change %@", row.label), control: row.control.name) { c in codec.setRaw(next, in: &c) }
     }
 }
 
@@ -511,7 +516,7 @@ struct CatalogChoiceRow: View {
                 let inverted = Catalog.shared.variables["EBIT_vsInvert"].map { c.flag($0.index) } ?? false
                 title = (inverted ? u.labelInverted : nil) ?? u.label
             }
-            return Option(value: value, title: Catalog.cleanCaption(title), enabled: enabled)
+            return Option(value: value, title: L10n.catalog(Catalog.cleanCaption(title)), enabled: enabled)
         }
     }
 
@@ -574,10 +579,10 @@ struct CatalogChoiceRow: View {
     private func choose(_ value: Int) {
         guard let codec = row.codec else { return }
         if row.control.name == "GridCodeComboBox" {
-            document.edit("Change Grid Code", control: row.control.name) { GridPages.apply(gridCode: value, to: &$0) }
+            document.edit(L("Change Grid Code"), control: row.control.name) { GridPages.apply(gridCode: value, to: &$0) }
             return
         }
-        document.edit("Change \(row.label)", control: row.control.name) { codec.setRaw(value, in: &$0) }
+        document.edit(L("Change %@", row.label), control: row.control.name) { codec.setRaw(value, in: &$0) }
     }
 }
 
@@ -609,19 +614,19 @@ struct ChargeCurveView: View {
                     for x in [x1, x2] { grid.move(to: CGPoint(x: x, y: top)); grid.addLine(to: CGPoint(x: x, y: bottom)) }
                     ctx.stroke(grid, with: .color(Theme.wire), style: StrokeStyle(lineWidth: 0.5, dash: [3, 3]))
                     let f = { (v: Double) in v.formatted(.number.precision(.fractionLength(2))) + " V" }
-                    ctx.draw(Text("Bulk").font(.caption2).foregroundColor(.secondary), at: CGPoint(x: x1 / 2, y: bottom + 8))
-                    ctx.draw(Text(fixed ? "Absorption" : "Absorption (adaptive)").font(.caption2).foregroundColor(.secondary),
+                    ctx.draw(Text(L("Bulk")).font(.caption2).foregroundColor(.secondary), at: CGPoint(x: x1 / 2, y: bottom + 8))
+                    ctx.draw(Text(fixed ? L("Absorption") : L("Absorption (adaptive)")).font(.caption2).foregroundColor(.secondary),
                              at: CGPoint(x: (x1 + x2) / 2, y: bottom + 8))
-                    ctx.draw(Text("Float").font(.caption2).foregroundColor(.secondary), at: CGPoint(x: (x2 + size.width) / 2, y: bottom + 8))
+                    ctx.draw(Text(L("Float")).font(.caption2).foregroundColor(.secondary), at: CGPoint(x: (x2 + size.width) / 2, y: bottom + 8))
                     ctx.draw(Text(f(abs)).font(.caption.monospacedDigit()), at: CGPoint(x: (x1 + x2) / 2, y: y(abs) - 8))
                     ctx.draw(Text(f(float)).font(.caption.monospacedDigit()), at: CGPoint(x: (x2 + size.width) / 2, y: y(float) - 8))
                     if let hours {
-                        ctx.draw(Text("\(fixed ? "" : "max ")\(hours.formatted()) h").font(.caption2.monospacedDigit()).foregroundColor(.secondary),
+                        ctx.draw(Text(fixed ? L("%@ h", hours.formatted()) : L("max %@ h", hours.formatted())).font(.caption2.monospacedDigit()).foregroundColor(.secondary),
                                  at: CGPoint(x: (x1 + x2) / 2, y: y(abs) + 9))
                     }
                 }
                 .frame(height: 96)
-                .accessibilityLabel("Charge curve: absorption \(abs) volt, float \(float) volt")
+                .accessibilityLabel(L("Charge curve: absorption %@ volt, float %@ volt", abs.formatted(.number.precision(.fractionLength(2))), float.formatted(.number.precision(.fractionLength(2)))))
             }
         }
     }

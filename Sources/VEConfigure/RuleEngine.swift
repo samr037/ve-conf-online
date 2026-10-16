@@ -547,8 +547,8 @@ enum Access {
     }
 
     static let infoText: [String: String] = [
-        "reset": "Changing this setting requires a reset of the device after the file has been uploaded. The GX device does this for you.",
-        "password": "Changing this setting requires the grid code password. VE Configure for Mac cannot check it: the device verifies it when the file is uploaded.",
+        "reset": L("Changing this setting requires a reset of the device after the file has been uploaded. The GX device does this for you."),
+        "password": L("Changing this setting requires the grid code password. VE Configure for Mac cannot check it: the device verifies it when the file is uploaded."),
     ]
 }
 

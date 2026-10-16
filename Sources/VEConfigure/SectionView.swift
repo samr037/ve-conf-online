@@ -125,20 +125,20 @@ enum SectionPages {
         switch section {
         case .grid:
             var out: [Entry] = []
-            if let p = cat.pages[GridPages.selectionPage] { out.append(Entry(id: p.name, title: "Grid Code", page: p)) }
+            if let p = cat.pages[GridPages.selectionPage] { out.append(Entry(id: p.name, title: L("Grid Code"), page: p)) }
             if let n = GridPages.page(for: ctx.config), let p = cat.pages[n] {
-                out.append(Entry(id: n, title: GridPages.title(page: n, ctx.config, fallback: resolveText(p.caption, ctx) ?? n), page: p))
+                out.append(Entry(id: n, title: GridPages.title(page: n, ctx.config, fallback: resolveRawText(p.caption, ctx) ?? n), page: p))
             }
             if GridPages.showsMicrogrid(ctx.config), let p = cat.pages["MicroGridPage"] {
-                out.append(Entry(id: p.name, title: "Microgrid", page: p))
+                out.append(Entry(id: p.name, title: L("Microgrid"), page: p))
             }
             return out
         case .virtualSwitch:
             var pages: [CatalogPage] = []
             for case .pageControl(let pc) in page.children { pages = pc.pages }
             return pages.filter { Visibility.isVisible(page: $0.name, ctx) && hasVisibleRows($0, ctx) }.map { p in
-                let short = ["VirtualSwitchUsageSheet": "Usage", "VirtualSwitchOnSheet": "A: Set VS On",
-                             "VirtualSwitchOffSheet": "B: Set VS Off", "VirtualSwitchOptionsSheet": "Options"][p.name]
+                let short = ["VirtualSwitchUsageSheet": L("Usage"), "VirtualSwitchOnSheet": L("A: Set VS On"),
+                             "VirtualSwitchOffSheet": L("B: Set VS Off"), "VirtualSwitchOptionsSheet": L("Options")][p.name]
                 return Entry(id: p.name, title: short ?? resolveText(p.caption, ctx) ?? p.name, page: p)
             }
         default:
@@ -186,7 +186,7 @@ struct SectionView: View {
                 AssistantsPage(document: document)
             } else if let selected {
                 if entries.count > 1 {
-                    Picker("Page", selection: Binding(get: { selected.id }, set: { state.subpage[section] = $0 })) {
+                    Picker(L("Page"), selection: Binding(get: { selected.id }, set: { state.subpage[section] = $0 })) {
                         ForEach(entries) { Text($0.title).tag($0.id) }
                     }
                     .pickerStyle(.segmented)
@@ -211,7 +211,7 @@ struct SectionView: View {
             if let title = notice.actionTitle, notice.action == .openBatteryPresets {
                 Button(title) { ui.showingPresets = true }
             }
-            Button("OK", role: .cancel) {}
+            Button(L("OK"), role: .cancel) {}
         } message: { notice in
             Text(notice.message)
         }
@@ -220,8 +220,8 @@ struct SectionView: View {
     private var emptyPage: some View {
         VStack(spacing: 6) {
             Spacer()
-            Text("No settings on this page").font(.callout.weight(.medium))
-            Text("The firmware in this device does not support any of the settings on this page.")
+            Text(L("No settings on this page")).font(.callout.weight(.medium))
+            Text(L("The firmware in this device does not support any of the settings on this page."))
                 .font(.caption).foregroundStyle(.secondary)
             Spacer()
         }
@@ -252,7 +252,7 @@ struct CatalogPageView: View {
             }
             if section == .grid, !GridPages.paramsValid(ctx.config), page.name == GridPages.selectionPage {
                 SwiftUI.Section {
-                    Label("The grid code parameters do not match the selected grid code or belong to another firmware version. Select the grid code again to load its defaults (password required).",
+                    Label(L("The grid code parameters do not match the selected grid code or belong to another firmware version. Select the grid code again to load its defaults (password required)."),
                           systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(Theme.warning)
                 }
@@ -272,7 +272,7 @@ struct CatalogPageView: View {
                 }
             }
             if visible.isEmpty {
-                Text("The firmware in this device does not support any of the settings on this page.")
+                Text(L("The firmware in this device does not support any of the settings on this page."))
                     .foregroundStyle(.secondary)
             }
         }
@@ -292,15 +292,15 @@ struct CatalogPageView: View {
     @ViewBuilder private var passwordBanner: some View {
         SwiftUI.Section {
             if document.session.gridPasswordEntered {
-                Label("Grid code password entered. It is checked by the device when you upload the file.", systemImage: "lock.open")
+                Label(L("Grid code password entered. It is checked by the device when you upload the file."), systemImage: "lock.open")
                     .foregroundStyle(.secondary)
             } else if Access.gridCodeNeedsPassword(ctx) {
                 HStack {
-                    Label("Grid code settings are protected. As in VE Configure, changing them requires the grid code password from your installer or Victron.",
+                    Label(L("Grid code settings are protected. As in VE Configure, changing them requires the grid code password from your installer or Victron."),
                           systemImage: "lock.fill")
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer()
-                    Button("Unlock with Password…") { ui.askingPassword = true }
+                    Button(L("Unlock with Password…")) { ui.askingPassword = true }
                 }
             }
         }
@@ -315,17 +315,17 @@ struct PasswordSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Grid Code Password", systemImage: "lock.fill").font(.headline)
-            Text("Changing the grid code or its parameters requires the grid code password. This app cannot verify it offline: the device checks it when the file is uploaded, and rejects protected changes if it is wrong.")
+            Label(L("Grid Code Password"), systemImage: "lock.fill").font(.headline)
+            Text(L("Changing the grid code or its parameters requires the grid code password. This app cannot verify it offline: the device checks it when the file is uploaded, and rejects protected changes if it is wrong."))
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            SecureField("Password", text: $ui.password)
+            SecureField(L("Password"), text: $ui.password)
                 .textFieldStyle(.roundedBorder)
                 .onSubmit(unlock)
             HStack {
                 Spacer()
-                Button("Cancel", role: .cancel) { ui.password = ""; ui.askingPassword = false }
+                Button(L("Cancel"), role: .cancel) { ui.password = ""; ui.askingPassword = false }
                     .keyboardShortcut(.cancelAction)
-                Button("Unlock", action: unlock)
+                Button(L("Unlock"), action: unlock)
                     .keyboardShortcut(.defaultAction)
                     .disabled(ui.password.isEmpty)
             }
@@ -353,15 +353,15 @@ struct BatteryPresetSheet: View {
         let current = BatteryPresets.matching(c)
         let selected = presets.first { $0.id == (ui.presetID ?? current?.id) } ?? presets.first
         VStack(alignment: .leading, spacing: 12) {
-            Text("Battery Presets").font(.headline)
-            Text("Sets the charger for a battery type in one step. Values are shown for this \(c.dcVoltageClass) V system. A preset is not stored in the device: afterwards every value stays editable.")
+            Text(L("Battery Presets")).font(.headline)
+            Text(L("Sets the charger for a battery type in one step. Values are shown for this %@ V system. A preset is not stored in the device: afterwards every value stays editable.", "\(c.dcVoltageClass)"))
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             HStack(alignment: .top, spacing: 16) {
                 List(presets, selection: Binding(get: { selected?.id }, set: { ui.presetID = $0 })) { p in
                     HStack {
-                        Text(p.name).lineLimit(2)
+                        Text(L10n.catalog(p.name)).lineLimit(2)
                         Spacer()
-                        if p.id == current?.id { Text("current").font(.caption).foregroundStyle(Theme.changed) }
+                        if p.id == current?.id { Text(L("current")).font(.caption).foregroundStyle(Theme.changed) }
                     }
                     .tag(p.id)
                 }
@@ -370,11 +370,11 @@ struct BatteryPresetSheet: View {
             }
             HStack {
                 Spacer()
-                Button("Cancel", role: .cancel) { ui.showingPresets = false }.keyboardShortcut(.cancelAction)
-                Button("Apply") {
+                Button(L("Cancel"), role: .cancel) { ui.showingPresets = false }.keyboardShortcut(.cancelAction)
+                Button(L("Apply")) {
                     guard let selected else { return }
                     var note: Notice?
-                    document.edit("Apply Battery Preset") { cfg in note = BatteryPresets.apply(selected, to: &cfg) }
+                    document.edit(L("Apply Battery Preset")) { cfg in note = BatteryPresets.apply(selected, to: &cfg) }
                     ui.showingPresets = false
                     if let note { document.notices.append(note) }
                 }
@@ -403,12 +403,12 @@ struct BatteryPresetSheet: View {
     }
 
     private func valueText(_ p: BatteryPreset, _ name: String, _ ref: VariableRef, _ c: DeviceConfiguration) -> String {
-        guard let v = BatteryPresets.value(p, name, c) else { return "unchanged" }
-        if ref.kind == .flag { return v != 0 ? "On" : "Off" }
-        if name == "EPROM_ChargeCharacteristic" { return [1: "Fixed", 2: "Adaptive", 3: "Adaptive + BatterySafe"][Int(v)] ?? "\(v)" }
-        if name == "EPROM_TBatStopCharge", v <= -20.5 { return "Off" }
+        guard let v = BatteryPresets.value(p, name, c) else { return L("unchanged") }
+        if ref.kind == .flag { return v != 0 ? L("On") : L("Off") }
+        if name == "EPROM_ChargeCharacteristic" { return [1: "Fixed", 2: "Adaptive", 3: "Adaptive + BatterySafe"][Int(v)].map { L10n.catalog($0) } ?? "\(v)" }
+        if name == "EPROM_TBatStopCharge", v <= -20.5 { return L("Off") }
         let k = ValueCodec(setting: ref.index)
-        let unit = Catalog.shared.settingControls[ref.index]?.unit.map { $0 == "Hr" ? " h" : " " + $0 } ?? ""
+        let unit = Catalog.shared.settingControls[ref.index]?.unit.map { $0 == "Hr" ? " h" : " " + L10n.catalog($0) } ?? ""
         return (k?.format(v, c) ?? "\(v)") + unit
     }
 }

@@ -32,8 +32,8 @@ private struct AssistantsContent: View {
         }
         .formStyle(.grouped)
         .sheet(item: $sheet.wizard) { WizardView(model: $0) }
-        .alert("Assistants", isPresented: Binding(get: { model.message != nil }, set: { if !$0 { model.message = nil } })) {
-            Button("OK") { model.message = nil }
+        .alert(L("Assistants"), isPresented: Binding(get: { model.message != nil }, set: { if !$0 { model.message = nil } })) {
+            Button(L("OK")) { model.message = nil }
         } message: {
             Text(model.message ?? "")
         }
@@ -45,16 +45,16 @@ private struct AssistantsContent: View {
         SwiftUI.Section {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text("Assistant memory")
+                    Text(L("Assistant memory"))
                     Spacer()
-                    Text("\(model.codeSize.formatted()) of \(model.capacity.formatted()) bytes")
+                    Text(L("%@ of %@ bytes", model.codeSize.formatted(), model.capacity.formatted()))
                         .font(.value)
                         .foregroundStyle(.secondary)
                 }
                 MemoryBar(used: model.codeSize, capacity: max(model.capacity, 1))
                     .frame(height: 6)
-                    .accessibilityLabel("Assistant memory used")
-                    .accessibilityValue("\(model.codeSize) of \(model.capacity) bytes")
+                    .accessibilityLabel(L("Assistant memory used"))
+                    .accessibilityValue(L("%@ of %@ bytes", "\(model.codeSize)", "\(model.capacity)"))
             }
             .padding(.vertical, 2)
         }
@@ -63,7 +63,7 @@ private struct AssistantsContent: View {
     private var installedSection: some View {
         SwiftUI.Section {
             if model.installed.isEmpty {
-                Text("No assistants are programmed in this configuration.")
+                Text(L("No assistants are programmed in this configuration."))
                     .foregroundStyle(.secondary)
             }
             ForEach(model.installed) { item in
@@ -71,23 +71,23 @@ private struct AssistantsContent: View {
                     HStack(alignment: .firstTextBaseline) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(item.title).font(.headline)
-                            Text(String(format: "%@ · version %04X", item.package.baseName, item.package.id))
+                            Text(L("%@ · version %@", item.package.baseName, String(format: "%04X", item.package.id)))
                                 .font(.caption.monospacedDigit())
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Button("Configure…") { sheet.wizard = model.wizard(for: item.id) }
+                        Button(L("Configure…")) { sheet.wizard = model.wizard(for: item.id) }
                         Menu {
-                            Button("Move Up") { model.move(item.id, by: -1) }.disabled(item.id == 0)
-                            Button("Move Down") { model.move(item.id, by: 1) }.disabled(item.id == model.installed.count - 1)
+                            Button(L("Move Up")) { model.move(item.id, by: -1) }.disabled(item.id == 0)
+                            Button(L("Move Down")) { model.move(item.id, by: 1) }.disabled(item.id == model.installed.count - 1)
                             Divider()
-                            Button("Remove", role: .destructive) { model.remove(item.id) }
+                            Button(L("Remove"), role: .destructive) { model.remove(item.id) }
                         } label: {
                             Image(systemName: "ellipsis.circle")
                         }
                         .menuStyle(.borderlessButton)
                         .fixedSize()
-                        .accessibilityLabel("More actions for \(item.title)")
+                        .accessibilityLabel(L("More actions for %@", item.title))
                     }
                     if !item.summary.isEmpty {
                         Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 16, verticalSpacing: 4) {
@@ -104,9 +104,9 @@ private struct AssistantsContent: View {
                 .padding(.vertical, 4)
             }
         } header: {
-            Text("Installed")
+            Text(L("Installed"))
         } footer: {
-            Text("Assistants run in this order inside the inverter. Changing one re-programs all of them; review the change list before saving.")
+            Text(L("Assistants run in this order inside the inverter. Changing one re-programs all of them; review the change list before saving."))
         }
     }
 
@@ -117,7 +117,7 @@ private struct AssistantsContent: View {
                     Button(entry.title) { sheet.wizard = model.wizard(for: nil, adding: entry.package) }
                 }
             } label: {
-                Label("Add Assistant…", systemImage: "plus")
+                Label(L("Add Assistant…"), systemImage: "plus")
             }
             .fixedSize()
         }
@@ -126,12 +126,12 @@ private struct AssistantsContent: View {
     private var libraryMissing: some View {
         SwiftUI.Section {
             VStack(alignment: .leading, spacing: 10) {
-                Label("Victron's assistant library is needed", systemImage: "books.vertical")
+                Label(L("Victron's assistant library is needed"), systemImage: "books.vertical")
                     .font(.headline)
-                Text("Assistants are Victron's programs. Import the library file (all112.vfp or newer) from a VE Configure installation: it is in “VE Configure tools/Assistants”. It is copied once into this app's support folder.")
+                Text(L("Assistants are Victron's programs. Import the library file (all112.vfp or newer) from a VE Configure installation: it is in “VE Configure tools/Assistants”. It is copied once into this app's support folder."))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Button("Import Assistant Library…") { importLibrary() }
+                Button(L("Import Assistant Library…")) { importLibrary() }
             }
             .padding(.vertical, 4)
         }
@@ -141,7 +141,7 @@ private struct AssistantsContent: View {
         SwiftUI.Section {
             Label(why, systemImage: "exclamationmark.triangle.fill")
                 .foregroundStyle(Theme.warning)
-            Text("The assistant program in this file could not be read back with the installed library. Settings on the other pages can still be changed; the program is kept as it is.")
+            Text(L("The assistant program in this file could not be read back with the installed library. Settings on the other pages can still be changed; the program is kept as it is."))
                 .foregroundStyle(.secondary)
         }
     }
@@ -149,7 +149,7 @@ private struct AssistantsContent: View {
     private func importLibrary() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [UTType(filenameExtension: "vfp") ?? .data]
-        panel.message = "Choose allNNN.vfp from “VE Configure tools/Assistants”."
+        panel.message = L("Choose allNNN.vfp from “VE Configure tools/Assistants”.")
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do { try AssistantLibraryStore.shared.importLibrary(from: url) } catch { NSAlert(error: error).runModal() }
     }

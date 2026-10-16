@@ -39,7 +39,7 @@ struct SystemDiagram: View {
 
     private var accessibilitySummary: String {
         let names = lit.map(\.rawValue).sorted().joined(separator: ", ")
-        return "System diagram of the \(model). Highlighted: \(names.isEmpty ? "none" : names)."
+        return L("System diagram of the %@. Highlighted: %@.", model, names.isEmpty ? L("none") : names)
     }
 
     // MARK: Drawing
@@ -57,14 +57,14 @@ struct SystemDiagram: View {
 
         // AC-in 1: source circle, conductor to the Multi.
         let in1Lit = lit.contains(.acIn) || lit.contains(.charger) || lit.contains(.feedIn) || lit.contains(.transferSwitch)
-        acSource(&ctx, at: acIn1, lit: lit.contains(.acIn), label: hasSecondInput ? "AC-in 1" : "AC in",
+        acSource(&ctx, at: acIn1, lit: lit.contains(.acIn), label: hasSecondInput ? L("AC-in 1") : L("AC in"),
                  generator: false)
         conductor(&ctx, from: CGPoint(x: acIn1.x + 12, y: acIn1.y), to: CGPoint(x: multi.minX, y: acIn1.y),
                   color: Theme.acLine, lit: in1Lit,
                   flow: lit.contains(.feedIn) ? -1 : lit.contains(.charger) ? 1 : 0, phase: phase)
         if hasSecondInput {
             let in2Lit = lit.contains(.acIn2) || lit.contains(.generator)
-            acSource(&ctx, at: acIn2, lit: in2Lit, label: "AC-in 2", generator: true)
+            acSource(&ctx, at: acIn2, lit: in2Lit, label: L("AC-in 2"), generator: true)
             conductor(&ctx, from: CGPoint(x: acIn2.x + 12, y: acIn2.y), to: CGPoint(x: multi.minX, y: acIn2.y),
                       color: Theme.acLine, lit: in2Lit, flow: 0, phase: phase)
         }
@@ -131,7 +131,7 @@ struct SystemDiagram: View {
         x.move(to: CGPoint(x: rect.minX + 4, y: rect.minY + 4)); x.addLine(to: CGPoint(x: rect.maxX - 4, y: rect.maxY - 4))
         x.move(to: CGPoint(x: rect.maxX - 4, y: rect.minY + 4)); x.addLine(to: CGPoint(x: rect.minX + 4, y: rect.maxY - 4))
         ctx.stroke(x, with: .color(lit ? Theme.victron : Theme.dcNegative), lineWidth: 1)
-        ctx.draw(Text("AC out").font(.diagramLabel).foregroundColor(.secondary), at: CGPoint(x: c.x, y: c.y + 20))
+        ctx.draw(Text(L("AC out")).font(.diagramLabel).foregroundColor(.secondary), at: CGPoint(x: c.x, y: c.y + 20))
     }
 
     private func batterySymbol(_ ctx: inout GraphicsContext, in r: CGRect, lit: Bool) {
@@ -143,7 +143,7 @@ struct SystemDiagram: View {
             plates.move(to: CGPoint(x: x + 5, y: r.minY + 4)); plates.addLine(to: CGPoint(x: x + 5, y: r.maxY - 4))
         }
         ctx.stroke(plates, with: .color(color), lineWidth: lit ? 2 : 1.4)
-        ctx.draw(Text("Battery").font(.diagramLabel).foregroundColor(.secondary), at: CGPoint(x: r.maxX + 30, y: r.midY))
+        ctx.draw(Text(L("Battery")).font(.diagramLabel).foregroundColor(.secondary), at: CGPoint(x: r.maxX + 30, y: r.midY))
     }
 
     private func relaySymbol(_ ctx: inout GraphicsContext, at c: CGPoint, lit: Bool) {
@@ -154,7 +154,7 @@ struct SystemDiagram: View {
         p.move(to: CGPoint(x: c.x + 4, y: c.y)); p.addLine(to: CGPoint(x: c.x + 10, y: c.y))
         p.move(to: CGPoint(x: c.x, y: c.y + 2)); p.addLine(to: CGPoint(x: c.x, y: c.y + 14))
         ctx.stroke(p, with: .color(color), lineWidth: lit ? 2 : 1.2)
-        if lit { ctx.draw(Text("Relay").font(.diagramLabel).foregroundColor(Theme.victron), at: CGPoint(x: c.x + 30, y: c.y)) }
+        if lit { ctx.draw(Text(L("Relay")).font(.diagramLabel).foregroundColor(Theme.victron), at: CGPoint(x: c.x + 30, y: c.y)) }
     }
 
     private func multiBlock(_ ctx: inout GraphicsContext, in r: CGRect) {

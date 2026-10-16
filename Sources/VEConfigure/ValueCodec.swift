@@ -346,12 +346,12 @@ struct ValueCodec {
         guard let r = raw(c) else { return "—" }
         if let items = control.items, let item = items.first(where: { $0.matches(r) }) {
             let t = item.displayText(context: context)
-            return control.name == "GridCodeComboBox" ? GridCodes.clean(t) : t
+            return L10n.catalog(control.name == "GridCodeComboBox" ? GridCodes.clean(t) : Catalog.cleanCaption(t))
         }
-        if case .flag = binding { return (r != 0) != control.isInverted ? "On" : "Off" }
-        if control.kind == .toggle { return (r != 0) != control.isInverted ? "On" : "Off" }
+        if case .flag = binding { return (r != 0) != control.isInverted ? L("On") : L("Off") }
+        if control.kind == .toggle { return (r != 0) != control.isInverted ? L("On") : L("Off") }
         guard let v = display(raw: r, c) else { return "\(r)" }
-        return format(v, c) + (control.unit.map { " " + $0 } ?? "")
+        return format(v, c) + (control.unit.map { " " + L10n.catalog($0) } ?? "")
     }
 }
 

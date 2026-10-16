@@ -8,13 +8,13 @@ enum Section: String, CaseIterable, Identifiable, Hashable {
 
     var title: String {
         switch self {
-        case .general: "General"
-        case .grid: "Grid"
-        case .inverter: "Inverter"
-        case .charger: "Charger"
-        case .virtualSwitch: "Virtual Switch"
-        case .assistants: "Assistants"
-        case .advanced: "Advanced"
+        case .general: L("General")
+        case .grid: L("Grid")
+        case .inverter: L("Inverter")
+        case .charger: L("Charger")
+        case .virtualSwitch: L("Virtual Switch")
+        case .assistants: L("Assistants")
+        case .advanced: L("Advanced")
         }
     }
 
@@ -96,9 +96,9 @@ struct MainWindow: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button { state.showsChanges.toggle() } label: {
-                        Label("Changes", systemImage: "list.bullet.rectangle")
+                        Label(L("Changes"), systemImage: "list.bullet.rectangle")
                     }
-                    .help("Show or hide the list of changes")
+                    .help(L("Show or hide the list of changes"))
                 }
             }
         }
@@ -131,10 +131,10 @@ private struct DeviceIdentity: View {
             Text(config.modelName)
                 .font(.headline)
                 .foregroundStyle(.primary)
-            Text("Serial \(config.serial ?? "—")")
-            Text("Firmware \(config.firmware.description)")
+            Text(L("Serial %@", config.serial ?? "—"))
+            Text(L("Firmware %@", config.firmware.description))
             if let date = config.readDate {
-                Text("Read \(date.formatted(date: .abbreviated, time: .shortened))")
+                Text(L("Read %@", date.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(Locale(identifier: L10n.language)))))
             }
         }
         .font(.caption.monospacedDigit())
@@ -148,7 +148,7 @@ extension DeviceConfiguration {
     /// Best-effort product name from the firmware type until the device table is decoded.
     var modelName: String {
         let r = MetaGenerator.ratings(self)
-        guard r.dc > 0, r.power > 0 else { return "VE.Bus inverter/charger" }
+        guard r.dc > 0, r.power > 0 else { return L("VE.Bus inverter/charger") }
         return "\(r.dc) V · \(r.power) VA"
     }
     var hasSecondACInput: Bool { info.info(49)?.isSupported == true }

@@ -15,7 +15,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             Task { await renderSnapshots(file: URL(fileURLWithPath: args[i + 1]), dir: URL(fileURLWithPath: args[i + 2])) }
             return
         }
-        let files = args.dropFirst().filter { !$0.hasPrefix("-") }.map { URL(fileURLWithPath: $0) }
+        // Skip options and their values (--language xx, -AppleLanguages (fr)).
+        var files: [URL] = []
+        var rest = args.dropFirst()[...]
+        while let a = rest.popFirst() {
+            if a.hasPrefix("-") { if a == "--language" || a.hasPrefix("-Apple") || a.hasPrefix("-NS") { _ = rest.popFirst() }; continue }
+            files.append(URL(fileURLWithPath: a))
+        }
         if files.isEmpty { showWelcome() } else { files.forEach(open) }
     }
 
@@ -71,7 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             welcome?.close()
         } catch {
             let alert = NSAlert()
-            alert.messageText = "Can't open “\(url.lastPathComponent)”"
+            alert.messageText = L("Can't open “%@”", url.lastPathComponent)
             alert.informativeText = "\(error)"
             alert.runModal()
         }
@@ -84,11 +90,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         guard let entry = windows.values.first(where: { $0.window === sender }), entry.document.isEdited else { return true }
         let alert = NSAlert()
-        alert.messageText = "Save the changes to “\(entry.document.title)”?"
-        alert.informativeText = "\(entry.document.changes.count) settings were changed. If you don't save, they're lost."
-        alert.addButton(withTitle: "Save…")
-        alert.addButton(withTitle: "Cancel")
-        alert.addButton(withTitle: "Don't Save")
+        alert.messageText = L("Save the changes to “%@”?", entry.document.title)
+        alert.informativeText = L("%@ settings were changed. If you don't save, they're lost.", "\(entry.document.changes.count)")
+        alert.addButton(withTitle: L("Save…"))
+        alert.addButton(withTitle: L("Cancel"))
+        alert.addButton(withTitle: L("Don't Save"))
         switch alert.runModal() {
         case .alertFirstButtonReturn: return save(entry.document)
         case .alertThirdButtonReturn: return true
@@ -111,7 +117,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = SettingFileType.all
         panel.allowsMultipleSelection = true
-        panel.message = "Choose a VE.Bus configuration downloaded from VRM (Remote VE Configure) or saved by VE Configure."
+        panel.message = L("Choose a VE.Bus configuration downloaded from VRM (Remote VE Configure) or saved by VE Configure.")
         if panel.runModal() == .OK { panel.urls.forEach(open) }
     }
 
@@ -123,7 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         panel.allowedContentTypes = [SettingFileType.rvsc, SettingFileType.vsc].compactMap { $0 }
         let base = document.url?.deletingPathExtension().lastPathComponent ?? "configuration"
         panel.nameFieldStringValue = base.hasSuffix("-edited") ? base : base + "-edited"
-        panel.message = "Save a new file, then upload it through VRM. The original download stays untouched."
+        panel.message = L("Save a new file, then upload it through VRM. The original download stays untouched.")
         guard panel.runModal() == .OK, let url = panel.url else { return false }
         do {
             try document.save(to: url)
@@ -157,33 +163,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return i
         }
         submenu("VE Configure", [
-            item("About VE Configure", #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
+            item(L("About VE Configure"), #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
             .separator(),
-            item("Hide VE Configure", #selector(NSApplication.hide(_:)), "h"),
-            item("Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]),
+            item(L("Hide VE Configure"), #selector(NSApplication.hide(_:)), "h"),
+            item(L("Hide Others"), #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]),
             .separator(),
-            item("Quit VE Configure", #selector(NSApplication.terminate(_:)), "q"),
+            item(L("Quit VE Configure"), #selector(NSApplication.terminate(_:)), "q"),
         ])
-        submenu("File", [
-            item("Open…", #selector(openDocument(_:)), "o"),
-            item("Save…", #selector(saveDocument(_:)), "s"),
+        submenu(L("File"), [
+            item(L("Open…"), #selector(openDocument(_:)), "o"),
+            item(L("Save…"), #selector(saveDocument(_:)), "s"),
             .separator(),
-            item("Close", #selector(NSWindow.performClose(_:)), "w"),
+            item(L("Close"), #selector(NSWindow.performClose(_:)), "w"),
         ])
-        submenu("Edit", [
-            item("Undo", Selector(("undo:")), "z"),
-            item("Redo", Selector(("redo:")), "z", [.command, .shift]),
+        submenu(L("Edit"), [
+            item(L("Undo"), Selector(("undo:")), "z"),
+            item(L("Redo"), Selector(("redo:")), "z", [.command, .shift]),
             .separator(),
-            item("Cut", #selector(NSText.cut(_:)), "x"),
-            item("Copy", #selector(NSText.copy(_:)), "c"),
-            item("Paste", #selector(NSText.paste(_:)), "v"),
-            item("Select All", #selector(NSText.selectAll(_:)), "a"),
+            item(L("Cut"), #selector(NSText.cut(_:)), "x"),
+            item(L("Copy"), #selector(NSText.copy(_:)), "c"),
+            item(L("Paste"), #selector(NSText.paste(_:)), "v"),
+            item(L("Select All"), #selector(NSText.selectAll(_:)), "a"),
         ])
-        submenu("View", [
-            item("Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control]),
+        submenu(L("View"), [
+            item(L("Enter Full Screen"), #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control]),
         ])
-        submenu("Window", [
-            item("Minimize", #selector(NSWindow.performMiniaturize(_:)), "m"),
+        submenu(L("Window"), [
+            item(L("Minimize"), #selector(NSWindow.performMiniaturize(_:)), "m"),
         ])
         return main
     }

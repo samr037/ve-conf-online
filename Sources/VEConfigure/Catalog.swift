@@ -88,10 +88,10 @@ final class Catalog {
     func label(forSetting id: Int) -> String? {
         if let c = settingControls[id] { return c.changeListLabel }
         if (129...190).contains(id) {
-            let word = id == 190 ? "general" : "\(id - 129)"
-            return "Grid code parameter word \(word)"
+            let word = id == 190 ? L("general") : "\(id - 129)"
+            return L("Grid code parameter word %@", word)
         }
-        if id == 128 || id == 191 { return "Grid parameter checker \(id == 128 ? "A" : "B")" }
+        if id == 128 || id == 191 { return L("Grid parameter checker %@", id == 128 ? "A" : "B") }
         return nil
     }
 
@@ -102,7 +102,7 @@ final class Catalog {
             .compactMap { $0.changeListLabel }
         guard !names.isEmpty else { return label(forSetting: id) }
         let list = names.prefix(3).joined(separator: ", ") + (names.count > 3 ? "…" : "")
-        return "\(list) (grid word \(id == 190 ? "G" : "\(id - 129)"))"
+        return L("%@ (grid word %@)", list, id == 190 ? "G" : "\(id - 129)")
     }
 
     func label(forFlag n: Int) -> String? { flagControls[n]?.changeListLabel }
@@ -111,18 +111,18 @@ final class Catalog {
 
     func gridCodeName(_ index: Int) -> String? {
         guard let item = controls["GridCodeComboBox"]?.items?.first(where: { $0.value == index }) else { return nil }
-        return GridCodes.clean(item.text.fallback)
+        return L10n.catalog(GridCodes.clean(item.text.fallback))
     }
 
     /// The value of a flag as the user reads it on the control (inverted checkboxes, 50/60 Hz radios…).
     func formatFlag(_ n: Int, _ on: Bool) -> String {
-        guard let c = flagControls[n] else { return on ? "On" : "Off" }
+        guard let c = flagControls[n] else { return on ? L("On") : L("Off") }
         if c.kind == .choice, let items = c.items {
             let raw = on ? 1 : 0
-            if let item = items.first(where: { $0.matches(raw) }) { return item.displayText(context: nil) }
+            if let item = items.first(where: { $0.matches(raw) }) { return L10n.catalog(Catalog.cleanCaption(item.displayText(context: nil))) }
         }
         let checked = c.semantics?.inverted == true ? !on : on
-        return checked ? "On" : "Off"
+        return checked ? L("On") : L("Off")
     }
 }
 
@@ -389,7 +389,7 @@ struct CatalogControl: Decodable {
         return t.map(Catalog.cleanCaption).flatMap { $0.isEmpty ? nil : $0 }
     }
 
-    /// LongSettingDescription, without Delphi format placeholders.
+    /// LongSettingDescription, without Delphi format placeholders, in the interface language.
     var cleanDescription: String? {
         guard var d = description, !d.isEmpty else { return nil }
         if d.hasPrefix("|") { return nil }
@@ -397,13 +397,13 @@ struct CatalogControl: Decodable {
         d = d.replacingOccurrences(of: "%s", with: "").replacingOccurrences(of: "%0:s", with: "")
             .replacingOccurrences(of: "%1:s", with: "")
         d = d.trimmingCharacters(in: .whitespaces)
-        return d.isEmpty ? nil : Catalog.cleanCaption(d.prefix(1).uppercased() + d.dropFirst())
+        return d.isEmpty ? nil : L10n.catalog(Catalog.cleanCaption(d.prefix(1).uppercased() + d.dropFirst()))
     }
 
-    /// Label used in the change list: the visible label unless it is only a fragment ("for").
+    /// Label used in the change list (interface language): the visible label unless it is only a fragment ("for").
     var changeListLabel: String? {
-        if let l = staticLabel, l.count > 4, !l.hasSuffix(" for") { return l }
-        return cleanDescription ?? staticLabel ?? help?.title
+        if let l = staticLabel, l.count > 4, !l.hasSuffix(" for") { return L10n.catalog(l) }
+        return cleanDescription ?? L10n.catalog(staticLabel ?? help?.title)
     }
 
     /// Settings this control writes (direct variable or grid words).

@@ -35,7 +35,7 @@ final class AssistantLibraryStore: ObservableObject {
     }
 
     static var languages: [String] {
-        Locale.preferredLanguages.map { String($0.prefix(2)).lowercased() } + ["en"]
+        [L10n.language] + Locale.preferredLanguages.map { String($0.prefix(2)).lowercased() } + ["en"]
     }
 }
 
@@ -96,7 +96,7 @@ final class AssistantsModel: ObservableObject {
             }
             let r = try c.reconstruct(image: config.data.assistantMemory)
             guard r.success else {
-                status = .failed(r.messages.first { $0.kind == .error || $0.kind == .fatal }?.text ?? "The assistant program could not be read back.")
+                status = .failed(r.messages.first { $0.kind == .error || $0.kind == .fatal }?.text ?? L("The assistant program could not be read back."))
                 composer = nil
                 installed = []
                 return
@@ -156,7 +156,7 @@ final class AssistantsModel: ObservableObject {
         case .check:
             let mask = p.values.first ?? 0
             let on = content.options.indices.filter { mask >> $0 & 1 == 1 }.map { lineText(content.options[$0]) }
-            return on.isEmpty ? "None" : on.joined(separator: ", ")
+            return on.isEmpty ? L("None") : on.joined(separator: ", ")
         case .entry:
             return content.entry.map { pieces in
                 pieces.map { piece -> String in
@@ -181,7 +181,7 @@ final class AssistantsModel: ObservableObject {
         let snapshot = (c.items, c.answers)
         if let package {
             guard !c.items.contains(where: { $0.name == package.baseName }) else {
-                message = "\(Self.title(of: package)) is already installed. Use Configure to change it."
+                message = L("%@ is already installed. Use Configure to change it.", Self.title(of: package))
                 return nil
             }
             c.items.append(.init(package: package))
@@ -191,7 +191,7 @@ final class AssistantsModel: ObservableObject {
         return WizardModel(composer: c, assistant: name, title: title, languages: AssistantLibraryStore.languages) { [weak self] result in
             guard let self else { return }
             guard let result else { (c.items, c.answers) = snapshot; return }
-            self.program(actionName: package != nil ? "Add \(title)" : "Configure \(title)", wizardChanges: result.vecChanges) {
+            self.program(actionName: package != nil ? L("Add %@", title) : L("Configure %@", title), wizardChanges: result.vecChanges) {
                 (c.items, c.answers) = snapshot
             }
         }
@@ -202,14 +202,14 @@ final class AssistantsModel: ObservableObject {
         let snapshot = (c.items, c.answers)
         let name = installed.first { $0.id == index }?.title ?? c.items[index].name
         c.items.remove(at: index)
-        program(actionName: "Remove \(name)") { (c.items, c.answers) = snapshot }
+        program(actionName: L("Remove %@", name)) { (c.items, c.answers) = snapshot }
     }
 
     func move(_ index: Int, by delta: Int) {
         guard let c = composer, index + delta >= 0, index + delta < c.items.count else { return }
         let snapshot = (c.items, c.answers)
         c.items.swapAt(index, index + delta)
-        program(actionName: "Reorder Assistants") { (c.items, c.answers) = snapshot }
+        program(actionName: L("Reorder Assistants")) { (c.items, c.answers) = snapshot }
     }
 
     /// Re-assembles everything and writes the program (and assistant-made setting changes) into the document.
@@ -218,19 +218,19 @@ final class AssistantsModel: ObservableObject {
         let r = c.build()
         guard r.success else {
             rollback()
-            message = r.messages.first { $0.kind == .error || $0.kind == .fatal }.map(Self.clean) ?? "The assistants could not be assembled."
+            message = r.messages.first { $0.kind == .error || $0.kind == .fatal }.map(Self.clean) ?? L("The assistants could not be assembled.")
             return
         }
         let needed = r.code.count + 4 + 2 * (c.items.count + 2)
         guard c.items.isEmpty || needed <= memorySize else {
             rollback()
-            message = "Not enough assistant memory: \(needed) bytes needed, \(memorySize) available."
+            message = L("Not enough assistant memory: %@ bytes needed, %@ available.", "\(needed)", "\(memorySize)")
             return
         }
         let (new, battery) = c.apply(r, to: document.config, extraChanges: wizardChanges)
         lastImage = new.data.assistantMemory
         document.replace(with: new, actionName: actionName)
-        if let battery, battery > 0 { message = "The assistant selected battery preset \(battery). Check the Charger page." }
+        if let battery, battery > 0 { message = L("The assistant selected battery preset %@. Check the Charger page.", "\(battery)") }
         codeSize = c.items.isEmpty ? 0 : r.code.count
         installed = describe(c, steps: r.steps)
         let notes = r.messages.filter { $0.kind == .message }.map(Self.clean)

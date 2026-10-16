@@ -43,7 +43,7 @@ final class WizardModel: ObservableObject, Identifiable {
             finish(r)
         case .failed(let messages):
             let fatal = messages.first { $0.kind == .fatal || $0.kind == .error }
-            error = fatal.map(AssistantsModel.clean) ?? "The assistant stopped with an error."
+            error = fatal.map(AssistantsModel.clean) ?? L("The assistant stopped with an error.")
         case .cancelled:
             finish(nil)
         }
@@ -70,7 +70,7 @@ final class WizardModel: ObservableObject, Identifiable {
         var v = values
         if s.step.kind == .entry {
             for (i, f) in s.step.fields.enumerated() where i < texts.count && f.precision != .list {
-                guard let parsed = f.parse(texts[i]) else { error = "“\(texts[i])” is not a valid value."; NSSound.beep(); return }
+                guard let parsed = f.parse(texts[i]) else { error = L("“%@” is not a valid value.", texts[i]); NSSound.beep(); return }
                 v[i] = parsed
             }
         }
@@ -138,15 +138,15 @@ struct WizardView: View {
 
     private var footer: some View {
         HStack {
-            Text("Step \(max(model.stepNumber, 1))")
+            Text(L("Step %@", "\(max(model.stepNumber, 1))"))
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
             Spacer()
-            Button("Cancel", role: .cancel) { model.cancel() }
+            Button(L("Cancel"), role: .cancel) { model.cancel() }
                 .keyboardShortcut(.cancelAction)
-            Button("Previous") { model.previous() }
+            Button(L("Previous")) { model.previous() }
                 .disabled(!model.canGoBack)
-            Button("Next") { model.next() }
+            Button(L("Next")) { model.next() }
                 .keyboardShortcut(.defaultAction)
                 .disabled(!model.canGoForward)
         }
@@ -221,7 +221,7 @@ struct WizardView: View {
                         .font(.value)
                         .multilineTextAlignment(.trailing)
                         .frame(width: 90)
-                        .help("Range \(f.display(f.min)) – \(f.display(f.max)), default \(f.display(f.defaultValue))")
+                        .help(L("Range %@ – %@, default %@", f.display(f.min), f.display(f.max), f.display(f.defaultValue)))
                         .onSubmit { model.next() }
                 }
             }

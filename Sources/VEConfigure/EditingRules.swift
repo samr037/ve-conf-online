@@ -98,18 +98,18 @@ enum GridPages {
         let code = Int(c.raw(81))
         let variant = c.gridTable?.entries[code]?.variant ?? 0
         switch code {
-        case 20: return "Northern Ireland"
+        case 20: return L("Northern Ireland")
         case 31: return "UK G98"
         case 2: return c.gridTable?.entries[31] != nil ? "UK G99" : "UK"
         case 9: return variant > 1 ? "VFR 2019" : "UTE C15"
         case 11 where variant != 0: return "C10/11"
         case 12 where variant != 0: return "TOR Erzeuger Typ A"
-        case 17: return "European"
-        case 18: return "DK1 (Western Denmark)"
-        case 19: return "DK2 (Eastern Denmark)"
+        case 17: return L("European")
+        case 18: return L("DK1 (Western Denmark)")
+        case 19: return L("DK2 (Eastern Denmark)")
         case 30: return "Czech 2023"
-        case 22...29: return ["Australia A", "Australia B", "Australia C", "New Zealand"][(code > 25 ? code - 4 : code) - 22]
-        default: return fallback.replacingOccurrences(of: " grid code settings", with: "")
+        case 22...29: return [L("Australia A"), L("Australia B"), L("Australia C"), L("New Zealand")][(code > 25 ? code - 4 : code) - 22]
+        default: return L10n.catalog(fallback.replacingOccurrences(of: " grid code settings", with: ""))
         }
     }
 
@@ -188,24 +188,24 @@ enum Consequences {
         if let abs = display("EPROM_UBatAbs", c), let fl = display("EPROM_UBatFloat", c), abs < fl - 1e-9,
            let r = raw("EPROM_UBatAbs", c) {
             setRaw("EPROM_UBatFloat", r, &c)
-            notices.append(Notice(title: "Float voltage adapted", message: "Absorption voltage must be higher than float voltage. The float voltage was set to the absorption voltage."))
+            notices.append(Notice(title: L("Float voltage adapted"), message: L("Absorption voltage must be higher than float voltage. The float voltage was set to the absorption voltage.")))
         }
         // 3. SoC low restart below shut-down → shut-down := restart.
         if let start = raw("EPROM_SOCStartInvert", c), let stop = raw("EPROM_SOCStopInvert", c), start != 0, start < stop {
             setRaw("EPROM_SOCStopInvert", start, &c)
-            notices.append(Notice(title: "SOC low shut-down adapted", message: "“SOC low restart” must not be lower than “SOC low shut-down”. “SOC low shut-down” was adapted."))
+            notices.append(Notice(title: L("SOC low shut-down adapted"), message: L("“SOC low restart” must not be lower than “SOC low shut-down”. “SOC low shut-down” was adapted.")))
         }
         // 4. VS2 load: "higher than" below "lower than" → lower := higher.
         if let hi = display("EPROM_vs2onILoadHigh", c), let lo = display("EPROM_vs2offILoadLow", c), hi < lo,
            let r = raw("EPROM_vs2onILoadHigh", c) {
             setRaw("EPROM_vs2offILoadLow", r, &c)
-            notices.append(Notice(title: "Limit adapted", message: "Secondary virtual switch “Load higher than” limit must be higher than the “Load lower than” limit. “Load lower than” limit was adapted."))
+            notices.append(Notice(title: L("Limit adapted"), message: L("Secondary virtual switch “Load higher than” limit must be higher than the “Load lower than” limit. “Load lower than” limit was adapted.")))
         }
         // 5. VS2 battery: "Udc higher than" below "Udc lower than" → lower := higher.
         if let offRaw = raw("EPROM_vs2offUBat", c), offRaw > 0xFF, let off = display("EPROM_vs2offUBat", c),
            let low = display("EPROM_vs2onUBatLow", c), off < low {
             codec("EPROM_vs2onUBatLow")?.setDisplay(off, in: &c)
-            notices.append(Notice(title: "Limit adapted", message: "Secondary virtual switch “Udc lower than” limit must be lower than the “Udc higher than” limit. “Udc lower than” limit was adapted."))
+            notices.append(Notice(title: L("Limit adapted"), message: L("Secondary virtual switch “Udc lower than” limit must be lower than the “Udc higher than” limit. “Udc lower than” limit was adapted.")))
         }
         // 9. DC input low restart minimum 10.9 / 20.6 / 41.2 V.
         if let k = Catalog.shared.controls["DCLowRestartEdit"].flatMap(ValueCodec.init(control:)), k.isSupported(c),
@@ -213,7 +213,7 @@ enum Consequences {
             let minimum = [12: 10.9, 24: 20.6, 48: 41.2][c.dcVoltageClass] ?? 10.9
             if restart < minimum - 1e-6 {
                 k.setDisplay(minimum, in: &c)
-                notices.append(Notice(title: "Restart voltage adapted", message: "DC input low restart voltage must be ≥ \(minimum.formatted()) V. The restart voltage acts as an offset on the DC input low shut-down, so this can happen even when its own minimum looks lower."))
+                notices.append(Notice(title: L("Restart voltage adapted"), message: L("DC input low restart voltage must be ≥ %@ V. The restart voltage acts as an offset on the DC input low shut-down, so this can happen even when its own minimum looks lower.", minimum.formatted())))
             }
         }
         // UPS function ⇒ "allow low voltage during in-rush" follows it (MakeConsitenWithWaveShapeCheck).
@@ -226,8 +226,8 @@ enum Consequences {
                 setFlag("EBIT_TubularPlateTractionBatteryCurve", false, &c)
                 if let curve = raw("EPROM_ChargeCharacteristic", c), curve > 2 { setRaw("EPROM_ChargeCharacteristic", 1, &c) }
                 if control == "LithiumCheckBox" {
-                    notices.append(Notice(title: "Lithium batteries", message: "This is not the only relevant setting for lithium batteries. Normally more settings need to be changed: use a battery preset to set them together.",
-                                          action: .openBatteryPresets, actionTitle: "Battery Presets…"))
+                    notices.append(Notice(title: L("Lithium batteries"), message: L("This is not the only relevant setting for lithium batteries. Normally more settings need to be changed: use a battery preset to set them together."),
+                                          action: .openBatteryPresets, actionTitle: L("Battery Presets…")))
                 }
             } else {
                 setRaw("EPROM_TBatStopCharge", 0, &c)
@@ -239,7 +239,7 @@ enum Consequences {
            !c.flag(ref.index), changed("EPROM_BatteryCapacity", old, c) || changed("EBIT_DoNotStopAfter10HrBulk", old, c),
            Catalog.shared.controls["EnableBatteryMonitorCheckBox"].map({ Visibility.isVisible($0, RuleContext(config: c, baseline: old, session: .init())) }) == true {
             c.setFlag(ref.index, true)
-            notices.append(Notice(title: "“Stop after excessive bulk” disabled", message: "The battery monitor is disabled. The firmware requires the battery monitor for the bulk protection to work. To use “Stop after excessive bulk”, enable the battery monitor first."))
+            notices.append(Notice(title: L("“Stop after excessive bulk” disabled"), message: L("The battery monitor is disabled. The firmware requires the battery monitor for the bulk protection to work. To use “Stop after excessive bulk”, enable the battery monitor first.")))
         }
         // VS options: frequency shift on VS and on Udc are mutually exclusive.
         if flag("EBIT_vsSetInverterPeriodTime", c) == true, flag("EBIT_vsSetInverterPeriodTime", old) == false {
@@ -269,23 +269,23 @@ enum Consequences {
         // Enabling the virtual switch disables assistants.
         if changed("EPROM_vsUsage", old, c), raw("EPROM_vsUsage", old) == 0, (raw("EPROM_vsUsage", c) ?? 0) != 0,
            !AssistantDirectory(c).ids.isEmpty {
-            notices.append(Notice(title: "Assistants will stop working", message: "Enabling the virtual switch disables the assistant functionality. VE Configure removes all configured assistants in this case; remove them on the Assistants tab, or set the virtual switch back to “Do not use VS”."))
+            notices.append(Notice(title: L("Assistants will stop working"), message: L("Enabling the virtual switch disables the assistant functionality. VE Configure removes all configured assistants in this case; remove them on the Assistants tab, or set the virtual switch back to “Do not use VS”.")))
         }
         // Informative warnings.
         if control?.hasPrefix("RepeatedAbsorption") == true, let t = display("EPROM_EqualiseQuarters", c),
            let d = display("EPROM_FloatDays", c), t >= d * 24 {
-            notices.append(Notice(title: "Continuous absorption", message: "Repeated absorption time ≥ repeated absorption interval time. This results in continuous absorption."))
+            notices.append(Notice(title: L("Continuous absorption"), message: L("Repeated absorption time ≥ repeated absorption interval time. This results in continuous absorption.")))
         }
         if control == "TPTBCheckBox", flag("EBIT_TubularPlateTractionBatteryCurve", c) == true {
-            notices.append(Notice(title: "Tubular plate traction battery curve", message: "Note that the system DC voltage can get as high as \(c.cells / 6 * 17) V."))
+            notices.append(Notice(title: L("Tubular plate traction battery curve"), message: L("Note that the system DC voltage can get as high as %@ V.", "\(c.cells / 6 * 17)")))
         }
         if control == "ACLowSwitchOnEdit" || control == "ACHighSwitchOnEdit",
            let lo = Catalog.shared.controls["ACLowSwitchOnEdit"].flatMap(ValueCodec.init(control:))?.display(c),
            let hi = Catalog.shared.controls["ACHighSwitchOnEdit"].flatMap(ValueCodec.init(control:))?.display(c), lo >= hi {
-            notices.append(Notice(title: "AC connect levels", message: "AC low connect is set higher than or equal to AC high connect. The grid voltage would never be accepted."))
+            notices.append(Notice(title: L("AC connect levels"), message: L("AC low connect is set higher than or equal to AC high connect. The grid voltage would never be accepted.")))
         }
         if control == "GridCodeComboBox", let code = raw("EPROM_GridCode", c), code == 1 || code == 21 {
-            notices.append(Notice(title: "Not compliant with any standard", message: "With grid code “\(GridCodes.name(code))” the Multi/Quattro does not comply with any standard. Installing external certified equipment might be mandatory."))
+            notices.append(Notice(title: L("Not compliant with any standard"), message: L("With grid code “%@” the Multi/Quattro does not comply with any standard. Installing external certified equipment might be mandatory.", GridCodes.name(code))))
         }
         return notices
     }
@@ -334,7 +334,7 @@ enum BatteryPresets {
            Catalog.shared.variables["EBIT_ConfiguredForVEBusBMS"].map({ c.supports($0) }) != true,
            let liion = Catalog.shared.batteryPresets.first(where: { $0.id == "cbtLiIon" }) {
             p = liion
-            extra = "The firmware in the Multi/Quattro does not support a VE.Bus BMS directly. An assistant is required to handle the VE.Bus BMS. Battery type set to standard Li-Ion.\n\n"
+            extra = L("The firmware in the Multi/Quattro does not support a VE.Bus BMS directly. An assistant is required to handle the VE.Bus BMS. Battery type set to standard Li-Ion.") + "\n\n"
         }
         var changedNames: [String] = []
         var limited: [String] = []
@@ -353,9 +353,9 @@ enum BatteryPresets {
             }
         }
         if let tptb = Catalog.shared.variables["EBIT_TubularPlateTractionBatteryCurve"], c.supportsFlag(tptb.index) { c.setFlag(tptb.index, false) }
-        var msg = extra + (changedNames.isEmpty ? "No settings needed to change." : "Changed: " + changedNames.joined(separator: ", ") + ".")
-        if !limited.isEmpty { msg += "\n\nLimited by the device range: " + limited.joined(separator: ", ") + "." }
-        return Notice(title: "Battery type set to \(p.name)", message: msg)
+        var msg = extra + (changedNames.isEmpty ? L("No settings needed to change.") : L("Changed: %@.", changedNames.joined(separator: ", ")))
+        if !limited.isEmpty { msg += "\n\n" + L("Limited by the device range: %@.", limited.joined(separator: ", ")) }
+        return Notice(title: L("Battery type set to %@", L10n.catalog(p.name)), message: msg)
     }
 }
 
