@@ -81,12 +81,15 @@ final class AssistantsModel: ObservableObject {
     @Published private(set) var codeSize = 0
     @Published var message: String?
 
-    private unowned let document: ConfigDocument
+    private weak var document: ConfigDocument?
     private var composer: AssistantComposer?
     private var lastImage: [UInt8] = []
     private var cancellables: Set<AnyCancellable> = []
+    /// A wizard sheet is open on `composer`: reloads wait until it closes (its answers then no longer apply).
+    private var wizardOpen = false
+    private var reloadDeferred = false
 
-    var memorySize: Int { document.config.data.assistantMemory.count }
+    var memorySize: Int { document?.config.data.assistantMemory.count ?? AssistantComposer.memorySize }
     /// Bytes the code may use: the area minus the ID directory (framework + assistants) and the checksum.
     var capacity: Int { memorySize - 4 - 2 * (installed.count + 2) }
 
@@ -104,33 +107,50 @@ final class AssistantsModel: ObservableObject {
         AssistantLibraryStore.shared.$library.dropFirst().sink { [weak self] _ in self?.reload() }.store(in: &cancellables)
     }
 
+    /// Battery preset index (`BatteryType_VEC`: 1-based in MetaGenerator.batteryPresets, 0 = none) the settings match.
+    static func batteryType(of c: DeviceConfiguration) -> Int {
+        guard let p = BatteryPresets.matching(c), let i = MetaGenerator.batteryPresets.firstIndex(of: p.id) else { return 0 }
+        return i + 1
+    }
+
+    /// META for the configuration as it is now: settings edited since the file was opened are what the
+    /// assistants must see.
+    static func meta(for c: DeviceConfiguration) -> [UInt8] {
+        MetaGenerator.source(for: c, batteryType: batteryType(of: c))
+    }
+
     func reload() {
+        guard let document else { return }
+        if wizardOpen { reloadDeferred = true; return }
         let config = document.config
         lastImage = config.data.assistantMemory
-        guard let lib = AssistantLibraryStore.shared.library else { status = .noLibrary; installed = []; return }
+        composer = nil
+        installed = []
+        codeSize = 0
+        guard let lib = AssistantLibraryStore.shared.library else { status = .noLibrary; return }
+        guard config.data.assistantMemory.count == AssistantComposer.memorySize else {
+            status = .failed("\(AssistantError.badMemorySize(config.data.assistantMemory.count))")
+            return
+        }
         do {
             let c = try AssistantComposer(library: lib)
             c.languages = AssistantLibraryStore.languages
-            c.meta = MetaGenerator.source(for: config)
-            if config.data.assistantMemory.allSatisfy({ $0 == 0xFF }) || AssistantComposer.installedIDs(in: config.data.assistantMemory).count < 2 {
-                c.items = []
-                composer = c
-                codeSize = 0
-                installed = []
-                status = .ready
-                return
-            }
+            c.meta = Self.meta(for: config)
             let r = try c.reconstruct(image: config.data.assistantMemory)
             guard r.success else {
                 status = .failed(r.messages.first { $0.kind == .error || $0.kind == .fatal }?.text ?? L("The assistant program could not be read back."))
-                composer = nil
-                installed = []
                 return
             }
+            if !c.items.isEmpty {
+                let b = c.build()
+                guard b.success else {
+                    status = .failed(b.messages.first { $0.kind == .error || $0.kind == .fatal }.map(Self.clean) ?? L("The assistants could not be assembled."))
+                    return
+                }
+                codeSize = b.code.count
+                installed = describe(c, steps: b.steps)
+            }
             composer = c
-            let b = c.build()
-            codeSize = b.code.count
-            installed = describe(c, steps: b.steps)
             status = .ready
         } catch {
             status = .failed("\(error)")
@@ -140,9 +160,14 @@ final class AssistantsModel: ObservableObject {
     /// Assistants available to add (framework excluded), with their menu titles.
     var available: [(package: AssistantPackage, title: String)] {
         guard let lib = AssistantLibraryStore.shared.library else { return [] }
-        return lib.latest.filter { !["asfStart", "asfStop"].contains($0.baseName) }
+        // Only what VE Configure lists in its Add menu: packages with a #MenuInfo (Hub-2 v2 and the framework have none).
+        return lib.latest.filter { !["asfStart", "asfStop"].contains($0.baseName) && Self.hasMenuInfo($0) }
             .map { ($0, Self.title(of: $0)) }
             .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+    }
+
+    static func hasMenuInfo(_ p: AssistantPackage) -> Bool {
+        p.scripts.values.contains { !(WizardText($0.bytes).lines("MenuInfo") ?? []).isEmpty }
     }
 
     static func title(of p: AssistantPackage) -> String {
@@ -213,10 +238,10 @@ final class AssistantsModel: ObservableObject {
         switch p.step.kind {
         case .radio:
             let v = Int(p.values.first ?? 0)
-            return v < content.options.count ? lineText(content.options[v]) : "\(v)"
+            return content.options.indices.contains(v) ? lineText(content.options[v]) : "\(v)"
         case .check:
-            let mask = p.values.first ?? 0
-            let on = content.options.indices.filter { mask >> $0 & 1 == 1 }.map { lineText(content.options[$0]) }
+            let mask = Int64(p.values.first ?? 0)
+            let on = content.options.indices.filter { $0 < 63 && mask >> $0 & 1 == 1 }.map { lineText(content.options[$0]) }
             return on.isEmpty ? L("None") : on.joined(separator: ", ")
         case .entry:
             return content.entry.map { pieces in
@@ -226,7 +251,7 @@ final class AssistantsModel: ObservableObject {
                     case .field(let i, let items):
                         guard i < p.values.count, i < p.step.fields.count else { return "?" }
                         let v = p.values[i]
-                        if let items { let k = Int(v - p.step.fields[i].min); return k >= 0 && k < items.count ? items[k] : "\(v)" }
+                        if let items { let k = Int(Int64(v) - Int64(p.step.fields[i].min)); return items.indices.contains(k) ? items[k] : "\(v)" }
                         return p.step.fields[i].display(v)
                     }
                 }.joined()
@@ -236,9 +261,11 @@ final class AssistantsModel: ObservableObject {
 
     // MARK: Editing
 
-    /// Starts the wizard of an installed assistant, or of a new one appended to the list.
+    /// Starts the wizard of an installed assistant, or of a new one appended to the list. Nil when no sheet is
+    /// needed: nothing to configure, or the wizard already ended (its result is then applied).
     func wizard(for index: Int?, adding package: AssistantPackage? = nil) -> WizardModel? {
-        guard let c = composer else { return nil }
+        guard let c = composer, let document, !wizardOpen else { return nil }
+        c.meta = Self.meta(for: document.config)
         let snapshot = (c.items, c.answers)
         if let package {
             guard !c.items.contains(where: { $0.name == package.baseName }) else {
@@ -247,64 +274,126 @@ final class AssistantsModel: ObservableObject {
             }
             c.items.append(.init(package: package))
         }
-        guard let name = index.map({ c.items[$0].name }) ?? package?.baseName else { return nil }
+        let name: String
+        if let package { name = package.baseName }
+        else if let index, c.items.indices.contains(index) { name = c.items[index].name }
+        else { return nil }
         let title = package.map(Self.title(of:)) ?? installed.first { $0.id == index }?.title ?? name
-        return WizardModel(composer: c, assistant: name, title: title, languages: AssistantLibraryStore.languages,
-                           expectedSteps: package == nil ? stepCounts[name] : nil) { [weak self] result in
-            guard let self else { return }
+        wizardOpen = true
+        let model = WizardModel(composer: c, assistant: name, title: title, languages: AssistantLibraryStore.languages,
+                                expectedSteps: package == nil ? stepCounts[name] : nil) { [weak self] result in
+            guard let self else { (c.items, c.answers) = snapshot; return }
+            self.wizardOpen = false
+            defer {
+                if self.reloadDeferred { self.reloadDeferred = false; self.reload() }
+            }
             guard let result else { (c.items, c.answers) = snapshot; return }
-            self.program(actionName: package != nil ? L("Add %@", title) : L("Configure %@", title), wizardChanges: result.vecChanges) {
+            // The answers belong to this composer and this configuration: if either changed meanwhile, drop them.
+            guard !self.reloadDeferred, self.composer === c else {
+                (c.items, c.answers) = snapshot
+                self.message = L("The configuration changed while the assistant was open. Its answers were not applied.")
+                return
+            }
+            self.program(c, actionName: package != nil ? L("Add %@", title) : L("Configure %@", title), wizardChanges: result.vecChanges) {
                 (c.items, c.answers) = snapshot
             }
         }
+        return model.finished ? nil : model
     }
 
     func remove(_ index: Int) {
-        guard let c = composer, index < c.items.count else { return }
+        guard let c = composer, !wizardOpen, c.items.indices.contains(index) else { return }
         let snapshot = (c.items, c.answers)
         let name = installed.first { $0.id == index }?.title ?? c.items[index].name
-        c.items.remove(at: index)
-        program(actionName: L("Remove %@", name)) { (c.items, c.answers) = snapshot }
+        let item = c.items.remove(at: index)
+        c.answers[item.name] = nil
+        let left = managedSettingLabels(item.package)
+        guard program(c, actionName: L("Remove %@", name), rollback: { (c.items, c.answers) = snapshot }) else { return }
+        if !left.isEmpty {
+            let before = message
+            message = L("%@ was removed. The settings it managed keep the values it gave them: %@. Check them on their pages.",
+                        name, left.joined(separator: ", ")) + (before.map { "\n\n" + $0 } ?? "")
+        }
     }
 
     /// Removes every assistant (enabling the virtual switch requires it).
     func removeAll() {
-        guard let c = composer, !c.items.isEmpty else { return }
+        guard let c = composer, !wizardOpen, !c.items.isEmpty else { return }
         let snapshot = (c.items, c.answers)
+        let left = c.items.flatMap { managedSettingLabels($0.package) }
         c.items.removeAll()
-        program(actionName: L("Remove All Assistants")) { (c.items, c.answers) = snapshot }
+        c.answers = [:]
+        guard program(c, actionName: L("Remove All Assistants"), rollback: { (c.items, c.answers) = snapshot }) else { return }
+        if !left.isEmpty {
+            message = L("The assistants were removed. The settings they managed keep the values they gave them: %@. Check them on their pages.",
+                        Array(NSOrderedSet(array: left)).compactMap { $0 as? String }.joined(separator: ", "))
+        }
     }
 
     func move(_ index: Int, by delta: Int) {
-        guard let c = composer, index + delta >= 0, index + delta < c.items.count else { return }
+        guard let c = composer, !wizardOpen, c.items.indices.contains(index), c.items.indices.contains(index + delta) else { return }
         let snapshot = (c.items, c.answers)
         c.items.swapAt(index, index + delta)
-        program(actionName: L("Reorder Assistants")) { (c.items, c.answers) = snapshot }
+        program(c, actionName: L("Reorder Assistants")) { (c.items, c.answers) = snapshot }
     }
 
-    /// Re-assembles everything and writes the program (and assistant-made setting changes) into the document.
-    private func program(actionName: String, wizardChanges: [String: Value] = [:], rollback: () -> Void) {
-        guard let c = composer else { return }
+    /// Names of the settings an assistant changes (its `_VEC` list) that this device has.
+    private func managedSettingLabels(_ p: AssistantPackage) -> [String] {
+        guard let config = document?.config else { return [] }
+        let targets = MetaGenerator.vecTargets(config)
+        return AssistantComposer.managedSettings(of: p).compactMap { name in
+            switch targets[name] {
+            case .setting(let id)?: return Catalog.shared.label(forSetting: id) ?? String(name.dropLast(4))
+            case .flag(let n)?: return Catalog.shared.label(forFlag: n) ?? String(name.dropLast(4))
+            case nil: return nil
+            }
+        }
+    }
+
+    /// Re-assembles everything and writes the program (the battery preset and settings the assistants chose, then
+    /// the image) into the document. META is regenerated from the configuration as it is now.
+    @discardableResult
+    private func program(_ c: AssistantComposer, actionName: String, wizardChanges: [String: Value] = [:], rollback: () -> Void) -> Bool {
+        guard let document else { rollback(); return false }
+        c.meta = Self.meta(for: document.config)
         let r = c.build()
         guard r.success else {
             rollback()
             message = r.messages.first { $0.kind == .error || $0.kind == .fatal }.map(Self.clean) ?? L("The assistants could not be assembled.")
-            return
+            return false
         }
-        let needed = r.code.count + 4 + 2 * (c.items.count + 2)
-        guard c.items.isEmpty || needed <= memorySize else {
+        var preset: Notice?
+        let applied: (DeviceConfiguration, batteryType: Int?)
+        do {
+            applied = try c.apply(r, to: document.config, extraChanges: wizardChanges) { index, cfg in
+                guard MetaGenerator.batteryPresets.indices.contains(index - 1),
+                      let p = Catalog.shared.batteryPresets.first(where: { $0.id == MetaGenerator.batteryPresets[index - 1] })
+                else { return }
+                preset = BatteryPresets.apply(p, to: &cfg)
+            }
+        } catch AssistantError.imageTooLarge(let needed, let size) {
             rollback()
-            message = L("Not enough assistant memory: %@ bytes needed, %@ available.", "\(needed)", "\(memorySize)")
-            return
+            message = L("Not enough assistant memory: %@ bytes needed, %@ available.", "\(needed)", "\(size)")
+            return false
+        } catch {
+            rollback()
+            message = "\(error)"
+            return false
         }
-        guard let (new, battery) = try? c.apply(r, to: document.config, extraChanges: wizardChanges) else { rollback(); return }
+        let (new, battery) = applied
         lastImage = new.data.assistantMemory
         document.replace(with: new, actionName: actionName)
-        if let battery, battery > 0 { message = L("The assistant selected battery preset %@. Check the Charger page.", "\(battery)") }
         codeSize = c.items.isEmpty ? 0 : r.code.count
         installed = describe(c, steps: r.steps)
-        let notes = r.messages.filter { $0.kind == .message }.map(Self.clean)
-        if !notes.isEmpty && message == nil { message = notes.joined(separator: "\n") }
+        var notes: [String] = []
+        if let preset {
+            notes.append(L("The assistant selected a battery type.") + " " + preset.title + "\n" + preset.message)
+        } else if let battery, battery > 0 {
+            notes.append(L("The assistant selected battery preset %@. Check the Charger page.", "\(battery)"))
+        }
+        notes += r.messages.filter { $0.kind == .message }.map(Self.clean)
+        if !notes.isEmpty && message == nil { message = notes.joined(separator: "\n\n") }
+        return true
     }
 
     static func clean(_ m: AssemblerMessage) -> String {
