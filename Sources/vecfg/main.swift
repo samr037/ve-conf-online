@@ -138,6 +138,14 @@ func reconstruct(_ args: [String]) {
             for (name, table) in r.answers.sorted(by: { $0.key < $1.key }) where !table.answers.isEmpty {
                 print("  \(name): " + table.answers.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value.value)" }.joined(separator: " "))
             }
+            // Cold rebuild from the recovered answers only (no device binary), then the full image.
+            let b = composer.build()
+            let image = composer.image(code: b.code, size: c.data.assistantMemory.count)
+            let same = image == c.data.assistantMemory
+            print("  rebuild from answers: \(b.success ? "OK" : "FAILED"), \(b.code.count) bytes; full image \(same ? "IDENTICAL to the device" : "DIFFERS")")
+            if !same, let d = zip(image, c.data.assistantMemory).enumerated().first(where: { $0.element.0 != $0.element.1 }) {
+                print(String(format: "  first difference at 0x%03X: %02X vs device %02X", d.offset, d.element.0, d.element.1))
+            }
         }
     } catch { fail("\(error)") }
 }

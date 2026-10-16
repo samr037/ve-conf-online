@@ -141,6 +141,21 @@ public final class AssistantComposer {
         return x
     }
 
+    /// Image checksum (VEConfig FUN_00510494): Σ((bᵢ xor 0xFF) << 8·(i mod 4)) − 1 over all bytes but the last 4.
+    public static func checksum(_ bytes: ArraySlice<UInt8>) -> UInt32 {
+        var sum: UInt32 = 0
+        for (i, b) in bytes.enumerated() { sum &+= UInt32(b ^ 0xFF) << (8 * UInt32(i % 4)) }
+        return sum &- 1
+    }
+
+    /// Complete device image: code, 0xFF padding, IDs (asfStop lowest … asfStart highest), 4-byte checksum.
+    public func image(code: [UInt8], size: Int = 4096) -> [UInt8] {
+        var img = image(code: code, size: size, trailer: [0, 0, 0, 0])
+        let c = Self.checksum(img[0..<(size - 4)])
+        for k in 0..<4 { img[size - 4 + k] = UInt8(c >> (8 * UInt32(k)) & 0xFF) }
+        return img
+    }
+
     /// Image of `size` bytes: code, 0xFF padding, IDs (asfStop first … asfStart last), trailer.
     public func image(code: [UInt8], size: Int = 4096, trailer: [UInt8]) -> [UInt8] {
         var img = code + [UInt8](repeating: 0xFF, count: max(0, size - code.count))

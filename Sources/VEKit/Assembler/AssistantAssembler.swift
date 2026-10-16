@@ -424,7 +424,7 @@ final class AssistantAssembler: Assembler {
         }
         guard pass == 1 else { return }
         guard var rec = table.answers[name] else { fatal("No corresponding .AUE found before this defintion"); return }
-        guard frameLabels == nil, !localNames.contains(name), globalDepth == 0 else {
+        guard !localNames.contains(name), globalDepth == 0, !scope.ext.contains(name), !scope.pub.contains(name) else {
             fatal("An assistant label must be a local label and cannot be an \"external\", global or macro local"); return
         }
         if scope.labels[name] != nil { fatal("This label is already defined!"); return }
