@@ -21,7 +21,7 @@
 		<dict>
 			<key>CFBundleTypeName</key><string>VE.Bus Configuration</string>
 			<key>CFBundleTypeRole</key><string>Editor</string>
-			<key>LSHandlerRank</key><string>Owner</string>
+			<key>LSHandlerRank</key><string>Default</string>
 			<key>LSItemContentTypes</key><array><string>local.veconfigure.rvsc</string><string>local.veconfigure.vsc</string></array>
 		</dict>
 	</array>
