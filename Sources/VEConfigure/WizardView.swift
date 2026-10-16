@@ -1,7 +1,8 @@
 import SwiftUI
 import VEKit
 
-/// Drives one assistant wizard; each answer re-assembles up to the next step (VE Configure's replay model).
+/// Drives one assistant wizard: the assembly pauses at each step and resumes with the answer (VE Configure's
+/// driver). Once it has finished or been cancelled every action is ignored.
 final class WizardModel: ObservableObject, Identifiable {
     let id = UUID()
     let title: String
@@ -68,16 +69,16 @@ final class WizardModel: ObservableObject, Identifiable {
     }
 
     var canGoBack: Bool {
-        guard let s = step else { return false }
+        guard !done, wizard.isWaiting, let s = step else { return false }
         return stepNumber > 1 && (s.buttons == .normal || s.buttons == .previousOnly)
     }
     var canGoForward: Bool {
-        guard let s = step else { return false }
+        guard !done, wizard.isWaiting, let s = step else { return false }
         return s.buttons == .normal || s.buttons == .nextOnly
     }
 
     func next() {
-        guard let s = step else { return }
+        guard !done, wizard.isWaiting, let s = step else { return }
         var v = values
         if s.step.kind == .entry {
             for (i, f) in s.step.fields.enumerated() where i < texts.count && f.precision != .list {
@@ -90,11 +91,13 @@ final class WizardModel: ObservableObject, Identifiable {
     }
 
     func previous() {
+        guard canGoBack else { return }
         wizard.previous()
         refresh(forward: false)
     }
 
     func cancel() {
+        guard !done else { return }
         wizard.cancel()
         finish(nil)
     }
@@ -132,6 +135,7 @@ struct WizardView: View {
         .frame(width: 600, height: 500)
         .background(Color(nsColor: .windowBackgroundColor))
         .onChange(of: model.finished) { _, done in if done { dismiss() } }
+        .onAppear { if model.finished { dismiss() } }   // ended before the sheet appeared
     }
 
     private var header: some View {

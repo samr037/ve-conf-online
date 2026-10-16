@@ -105,14 +105,32 @@ public final class AssistantComposer {
         [0xA7, 0xFE, 0x00, 0x00, 0x57, 0x01] + [UInt8](repeating: 0xFF, count: size - 6)
     }
 
-    /// Applies a successful build to a configuration: settings changed by the assistants (clamped to the device
-    /// range, as FUN_00516420 does) and the new program image. `BatteryType_VEC` is returned for the caller,
-    /// which owns the battery presets.
+    /// Size of the assistant program memory: VE Configure only ever handles 4096 bytes.
+    public static let memorySize = 4096
+
+    /// Bytes an image needs: code, the ID directory (framework + assistants) and the 4-byte checksum.
+    public func bytesNeeded(code: [UInt8]) -> Int { code.count + 2 * allPackages.count + 4 }
+
+    /// Applies a successful build to a configuration: the battery preset an assistant selected (`BatteryType_VEC`,
+    /// through `batteryPreset`, owned by the caller), then the settings changed by the assistants (clamped to the
+    /// device range, as FUN_00516420 does), then the new program image. Throws when the build failed or the program
+    /// does not fit the configuration's assistant memory.
     public func apply(_ result: AssistantBuildResult, to config: DeviceConfiguration,
-                      extraChanges: [String: Value] = [:]) -> (DeviceConfiguration, batteryType: Int?) {
+                      extraChanges: [String: Value] = [:],
+                      batteryPreset: ((Int, inout DeviceConfiguration) -> Void)? = nil) throws -> (DeviceConfiguration, batteryType: Int?) {
+        guard result.success else {
+            throw AssistantError.buildFailed(result.messages.first { $0.kind == .fatal || $0.kind == .error }?.text ?? "")
+        }
+        let size = config.data.assistantMemory.count
+        let memory = items.isEmpty ? try Self.emptyImage(checkedSize: size) : try image(code: result.code, size: size)
         var c = config
         let targets = MetaGenerator.vecTargets(config)
         let changes = extraChanges.merging(result.vecChanges) { _, new in new }
+        var battery: Int? = nil
+        if case .int(let b)? = changes["BatteryType_VEC"] {
+            battery = Int(b)
+            if b > 0 { batteryPreset?(Int(b), &c) }
+        }
         for (name, value) in changes {
             guard case .int(let v) = value, let target = targets[name] else { continue }
             switch target {
@@ -124,11 +142,29 @@ public final class AssistantComposer {
                 c.setFlag(n, v != 0)
             }
         }
-        let size = config.data.assistantMemory.count
-        c.data.assistantMemory = items.isEmpty ? Self.emptyImage(size: size) : image(code: result.code, size: size)
-        var battery: Int? = nil
-        if case .int(let b)? = changes["BatteryType_VEC"] { battery = Int(b) }
+        c.data.assistantMemory = memory
         return (c, battery)
+    }
+
+    static func emptyImage(checkedSize size: Int) throws -> [UInt8] {
+        guard size == memorySize else { throw AssistantError.badMemorySize(size) }
+        return emptyImage(size: size)
+    }
+
+    /// `_VEC` settings an assistant declares it changes (`AddVECSettingToChange` / `ChangeVECSetting` in its
+    /// source), in source order. Removing the assistant leaves them at the values it set.
+    public static func managedSettings(of package: AssistantPackage) -> [String] {
+        guard let source = package.source?.bytes else { return [] }
+        var out: [String] = []
+        for raw in source.split(separator: 0x0A) {
+            let line = String(decoding: raw, as: Latin1.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            for macro in ["AddVECSettingToChange ", "ChangeVECSetting "] {
+                guard let r = line.range(of: macro, options: [.caseInsensitive, .anchored]) else { continue }
+                let name = line[r.upperBound...].prefix { $0 != "," && !$0.isWhitespace }
+                if name.hasSuffix("_VEC"), !out.contains(String(name)) { out.append(String(name)) }
+            }
+        }
+        return out
     }
 
     /// Starts the wizard of one assistant (state 5); the others replay their stored answers.
@@ -140,8 +176,9 @@ public final class AssistantComposer {
 
     // MARK: Device image
 
-    /// Assistant IDs stored at the top of an image, read downward until asfStop.
-    public static func installedIDs(in image: [UInt8], trailer: Int = 4) -> [UInt32] {
+    /// Assistant IDs stored at the top of an image, read downward until the asfStop package (by name when the
+    /// library knows the ID, else the historical 0x000E), an erased word, or 64 entries.
+    public static func installedIDs(in image: [UInt8], library: AssistantLibrary? = nil, trailer: Int = 4) -> [UInt32] {
         var ids: [UInt32] = []
         var p = image.count - trailer - 2
         while p >= 0 {
@@ -149,14 +186,16 @@ public final class AssistantComposer {
             if id == 0xFFFF { break }
             ids.append(id)
             p -= 2
-            if id == 0x000E || ids.count > 64 { break }   // asfStop ends the list
+            let isStop = library?.package(id: id).map { $0.baseName == "asfStop" } ?? (id == 0x000E)
+            if isStop || ids.count > 64 { break }
         }
         return ids
     }
 
-    /// Fills the composer from an image's ID directory (top-down: asfStart, assistants…, asfStop).
+    /// Fills the composer from an image's ID directory (top-down: asfStart, assistants…, asfStop). Memory without a
+    /// directory (erased, or the "assistants removed" stub) holds no assistants.
     public func load(image: [UInt8]) throws {
-        let ids = Self.installedIDs(in: image)
+        let ids = Self.installedIDs(in: image, library: library)
         guard ids.count >= 2 else { items = []; return }
         guard let s = library.package(id: ids.first!), let e = library.package(id: ids.last!) else {
             throw AssistantError.unknownAssistant(ids.first!)
@@ -169,8 +208,25 @@ public final class AssistantComposer {
     }
 
     /// Recovers the user's answers from a device image (state 2) and checks the code re-assembles identically.
+    /// Port of FUN_00515ccc: on a 2614 model (0xA36) that does not read back, try again with `cDeviceInfo xor 3`.
     public func reconstruct(image: [UInt8]) throws -> AssistantBuildResult {
         try load(image: image)
+        guard Self.installedIDs(in: image, library: library).count >= 2 else {
+            answers = [:]
+            return AssistantBuildResult(success: true, code: [], messages: [], answers: [:], cancelled: false)
+        }
+        let first = readBack(image)
+        guard !first.success, MetaGenerator.equValue("cMultiVersion", in: meta).flatMap(Int.init).map({ $0 / 1000 }) == 0xA36,
+              let info = MetaGenerator.equValue("cDeviceInfo", in: meta).flatMap(Int32.init)
+        else { return first }
+        let original = meta
+        meta = MetaGenerator.replacingEqu("cDeviceInfo", with: String(info ^ 3), in: meta)
+        let second = readBack(image)
+        meta = original
+        return second.success ? second : first
+    }
+
+    private func readBack(_ image: [UInt8]) -> AssistantBuildResult {
         let a = makeAssembler { _ in .backReadBuild }
         a.states["META"] = .build
         a.tables = [:]
@@ -178,7 +234,7 @@ public final class AssistantComposer {
         let ok = a.assemble(root: rootList())
         var result = AssistantBuildResult(success: ok, code: a.code, messages: a.messages, answers: a.tables, cancelled: false)
         if ok {
-            let device = Self.trimmed(image, codeLength: a.code.count)
+            let device = Self.trimmed(image, codeLength: a.code.count, trailer: 4 + 2 * allPackages.count)
             if device != Self.trimmed(a.code, codeLength: a.code.count) {
                 let first = zip(device, a.code).enumerated().first { $0.element.0 != $0.element.1 }?.offset ?? min(device.count, a.code.count)
                 result.success = false
@@ -190,8 +246,10 @@ public final class AssistantComposer {
         return result
     }
 
-    static func trimmed(_ b: [UInt8], codeLength: Int) -> [UInt8] {
-        var x = Array(b.prefix(max(codeLength, 0) + 16))
+    /// The code part of a program for comparison: the ID directory and checksum (`trailer` bytes) removed, at most
+    /// 16 bytes past the code, without the trailing erased (0xFF) bytes.
+    static func trimmed(_ b: [UInt8], codeLength: Int, trailer: Int = 0) -> [UInt8] {
+        var x = Array(b.prefix(max(b.count - trailer, 0)).prefix(max(codeLength, 0) + 16))
         while x.last == 0xFF { x.removeLast() }
         return x
     }
@@ -204,91 +262,161 @@ public final class AssistantComposer {
     }
 
     /// Complete device image: code, 0xFF padding, IDs (asfStop lowest … asfStart highest), 4-byte checksum.
-    public func image(code: [UInt8], size: Int = 4096) -> [UInt8] {
-        var img = image(code: code, size: size, trailer: [0, 0, 0, 0])
-        let c = Self.checksum(img[0..<(size - 4)])
-        for k in 0..<4 { img[size - 4 + k] = UInt8(c >> (8 * UInt32(k)) & 0xFF) }
-        return img
-    }
-
-    /// Image of `size` bytes: code, 0xFF padding, IDs (asfStop first … asfStart last), trailer.
-    public func image(code: [UInt8], size: Int = 4096, trailer: [UInt8]) -> [UInt8] {
-        var img = code + [UInt8](repeating: 0xFF, count: max(0, size - code.count))
-        var p = size - trailer.count
+    /// Throws unless `size` is the 4096-byte assistant memory and everything fits in it.
+    public func image(code: [UInt8], size: Int = AssistantComposer.memorySize) throws -> [UInt8] {
+        guard size == Self.memorySize else { throw AssistantError.badMemorySize(size) }
+        let needed = bytesNeeded(code: code)
+        guard needed <= size else { throw AssistantError.imageTooLarge(needed: needed, size: size) }
+        var img = code + [UInt8](repeating: 0xFF, count: size - code.count)
+        var p = size - 4
         for pkg in allPackages {
             p -= 2
             img[p] = UInt8(pkg.id & 0xFF)
             img[p + 1] = UInt8(pkg.id >> 8)
         }
-        for (k, b) in trailer.enumerated() { img[size - trailer.count + k] = b }
+        let c = Self.checksum(img[0..<(size - 4)])
+        for k in 0..<4 { img[size - 4 + k] = UInt8(c >> (8 * UInt32(k)) & 0xFF) }
         return img
     }
 }
 
 public enum AssistantError: Error, CustomStringConvertible {
     case unknownAssistant(UInt32)
+    case imageTooLarge(needed: Int, size: Int)
+    case badMemorySize(Int)
+    case buildFailed(String)
     public var description: String {
         switch self {
         case .unknownAssistant(let id): String(format: "An Assistant, which is not on your system (ID 0x%04X), is installed in the device.", id)
+        case .imageTooLarge(let needed, let size): "Not enough assistant memory: \(needed) bytes needed, \(size) available."
+        case .badMemorySize(let n): "The assistant memory of this configuration is \(n) bytes; 4096 expected."
+        case .buildFailed(let m): m.isEmpty ? "The assistants could not be assembled." : m
         }
     }
 }
 
-/// One run of an assistant's wizard. Non-blocking: each call re-assembles from scratch up to the step to show
-/// (the same replay mechanism VE Configure uses for stepback), so the UI simply answers and calls again.
+/// One run of an assistant's wizard (driver FUN_00500bec, docs/re/03-assembler.md §11.7).
+///
+/// Like VE Configure, the assembly is one continuous run that pauses at each step shown: it runs on a worker thread
+/// that waits for the answer, so whatever the sources do once a step is handled (`$AUEHandled`, `.ALS`, `_VEC`
+/// settings) happens exactly once, with the user's answer. Only Previous (and a source's `.RESTART`) restarts the
+/// assembly from scratch, replaying the earlier steps with their stored answers.
+///
+/// The calls are synchronous: `next`/`previous` return once the worker shows the following step or has finished.
+/// After a cancel, finish or failure the wizard ignores further calls.
 public final class AssistantWizard {
     public enum Status { case step(AssistantStepPresentation), finished(AssistantBuildResult), failed([AssemblerMessage]), cancelled }
 
     let composer: AssistantComposer
     public let assistant: String
-    private var displayStep: Int32 = 1
-    private var backList: [Value] = []
-    private var tables: [String: AnswerTable]
-    private var pending: AssistantDecision?
-    public private(set) var status: Status = .cancelled
+    public private(set) var status: Status
+    private let session: WizardSession
 
     init(composer: AssistantComposer, assistant: String) {
         self.composer = composer
         self.assistant = assistant
-        tables = composer.answers
-        run()
+        session = WizardSession { session in
+            Self.drive(composer: composer, assistant: assistant, session: session)
+        }
+        status = session.start()
+        if case .finished(let r) = status { composer.answers = r.answers }
     }
 
-    public func next(_ values: [Int32]) { pending = .next(values); run() }
-    public func previous() { pending = .previous; run() }
-    public func cancel() { status = .cancelled }
+    deinit { session.abandon() }
 
-    private func run() {
+    /// A step is shown and waits for an answer.
+    public var isWaiting: Bool { if case .step = status { true } else { false } }
+
+    public func next(_ values: [Int32]) { answer(.next(values)) }
+    public func previous() { answer(.previous) }
+    public func cancel() {
+        guard isWaiting else { return }
+        _ = session.answer(.cancel)
+        status = .cancelled
+    }
+
+    private func answer(_ d: AssistantDecision) {
+        guard isWaiting else { return }
+        status = session.answer(d)
+        if case .finished(let r) = status { composer.answers = r.answers }
+    }
+
+    /// Worker side: the assembly loop, restarted on stepback.
+    private static func drive(composer: AssistantComposer, assistant: String, session: WizardSession) -> Status {
+        var displayStep: Int32 = 1
+        var backList: [Value] = []
+        var tables = composer.answers
         for _ in 0..<1024 {
-            let a = composer.assembler { [assistant] in $0 == assistant ? .userEntry : .build }
+            let a = composer.assembler { $0 == assistant ? .userEntry : .build }
             a.tables = tables
             a.displayStep = displayStep
             a.backStepList = backList
-            var captured: AssistantStepPresentation?
-            a.presentStep = { [unowned self] p in
-                if let d = self.pending { self.pending = nil; return d }
-                captured = p
-                return .suspend
-            }
+            a.presentStep = { session.present($0) }
             let ok = a.assemble(root: composer.root())
             a.captureDriverState()
             displayStep = a.displayStep
             backList = a.backStepList
             tables = a.tables
             if ok {
-                composer.answers = tables
                 var r = AssistantBuildResult(success: true, code: a.code, messages: a.messages, answers: tables, cancelled: false)
                 r.vecChanges = AssistantComposer.vecChanges(meta: composer.meta, assembler: a)
                 r.steps = a.stepLog
-                status = .finished(r)
-                return
+                return .finished(r)
             }
-            let first = a.messages.first(where: { $0.kind == .fatal })?.text
-            if first == AssistantAssembler.suspendMessage, let p = captured { status = .step(p); return }
-            if first == AssistantAssembler.restartMessage { continue }
-            status = .failed(a.messages)
-            return
+            if a.cancelled { return .cancelled }
+            if a.messages.first(where: { $0.kind == .fatal })?.text == AssistantAssembler.restartMessage { continue }
+            return .failed(a.messages)
         }
-        status = .failed([AssemblerMessage(kind: .fatal, text: "Wizard did not converge", position: "")])
+        return .failed([AssemblerMessage(kind: .fatal, text: "Wizard did not converge", position: "")])
+    }
+}
+
+/// Hand-off between the caller and the wizard's worker thread: exactly one of them runs at a time.
+private final class WizardSession: @unchecked Sendable {
+    private let toWorker = DispatchSemaphore(value: 0)
+    private let toCaller = DispatchSemaphore(value: 0)
+    private let work: (WizardSession) -> AssistantWizard.Status
+    private var decision: AssistantDecision = .cancel
+    private var event: AssistantWizard.Status = .cancelled
+    private var running = false
+
+    init(work: @escaping (WizardSession) -> AssistantWizard.Status) { self.work = work }
+
+    /// Starts the worker and returns the first step (or the end).
+    func start() -> AssistantWizard.Status {
+        running = true
+        let t = Thread { [self] in
+            let end = work(self)
+            event = end
+            running = false
+            toCaller.signal()
+        }
+        t.stackSize = 64 << 20   // nested .SOURCE / macro recursion
+        t.name = "Assistant wizard"
+        t.start()
+        toCaller.wait()
+        return event
+    }
+
+    /// Caller side: hands the answer to the waiting worker and returns its next step (or the end).
+    func answer(_ d: AssistantDecision) -> AssistantWizard.Status {
+        guard running else { return event }
+        decision = d
+        toWorker.signal()
+        toCaller.wait()
+        return event
+    }
+
+    /// Worker side: shows a step and waits for the answer.
+    func present(_ p: AssistantStepPresentation) -> AssistantDecision {
+        event = .step(p)
+        toCaller.signal()
+        toWorker.wait()
+        return decision
+    }
+
+    /// Lets a worker that still waits for an answer finish (cancel), so the thread ends.
+    func abandon() {
+        while running { _ = answer(.cancel) }
     }
 }

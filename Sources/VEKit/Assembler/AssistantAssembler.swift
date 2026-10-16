@@ -61,8 +61,6 @@ public struct AssistantStepPresentation: Sendable {
 
 public enum AssistantDecision: Sendable {
     case next([Int32]), previous, cancel
-    /// The UI has not answered yet: stop this run, show the step, and re-run once answered.
-    case suspend
 }
 
 final class AssistantAssembler: Assembler {
@@ -211,7 +209,6 @@ final class AssistantAssembler: Assembler {
     }
 
     static let restartMessage = "Assembly must be restarted for stepback"
-    static let suspendMessage = "Waiting for the user"
 
     /// Errors of assistant pseudo-ops are fatal (§10.3).
     private func fatal(_ text: String) { report(text, kind: .fatal, fatal: true) }
@@ -392,13 +389,6 @@ final class AssistantAssembler: Assembler {
                     global["$AssistantCancelled"]?.value = .bool(true)
                     report("Assembly cancelled by user", kind: .fatal, fatal: true)
                     return
-                case .suspend:
-                    if case .list(var back)? = global["$AssistantBackStepList"]?.value, !back.isEmpty {
-                        back.removeLast()
-                        global["$AssistantBackStepList"]?.value = .list(back)
-                    }
-                    report(Self.suspendMessage, kind: .fatal, fatal: true)
-                    return
                 }
             }
         }
@@ -479,6 +469,9 @@ final class AssistantAssembler: Assembler {
         var rec = t.answers[name] ?? AssistantAnswer(value: 0, previous: Int32.max)
         rec.pending = pending
         rec.pendingAlsoPrevious = alsoPrevious
+        // FUN_0050215c: an integer is stored as the value at once (kind 5 → +8), not only when an .AUE binds the
+        // label; labels that no .AUE binds (alSetCurveDefault) take effect through this.
+        if case .literal(let i) = pending { rec.value = i }
         t.answers[name] = rec
         table = t
     }

@@ -152,7 +152,8 @@ private struct AssistantsContent: View {
 
     private func importLibrary() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [UTType(filenameExtension: "vfp") ?? .data]
+        // Any file: a copied library may have lost its extension. It is installed only if it parses.
+        panel.allowedContentTypes = [.data]
         panel.message = L("Choose allNNN.vfp from “VE Configure tools/Assistants”.")
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do { try AssistantLibraryStore.shared.importLibrary(from: url) } catch { NSAlert(error: error).runModal() }
