@@ -5,6 +5,8 @@ import SwiftUI
 enum Theme {
     /// Victron blue: product blocks, selection, the lit path in the diagram.
     static let victron = dynamic(light: 0x1B5FAA, dark: 0x5B9BE6)
+    /// The product block: in dark mode deeper than `victron` so its white symbols keep ≥ 4.5:1.
+    static let victronBlock = dynamic(light: 0x1B5FAA, dark: 0x2B62A6)
     /// DC positive conductor.
     static let dcPositive = dynamic(light: 0xD7262E, dark: 0xF2575E)
     /// DC negative conductor.

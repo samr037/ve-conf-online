@@ -203,3 +203,6 @@
 "VE.Bus configuration" = "configuración VE.Bus";
 "Export Settings…" = "Exportar ajustes…";
 "Print Settings…" = "Imprimir ajustes…";
+"Step %@ of %@" = "Paso %@ de %@";
+"Changing these settings requires a device reset after upload. The GX does it." = "Cambiar estos ajustes requiere reiniciar el equipo tras la carga. El GX lo hace.";
+"Settings marked with the arrow require a device reset after upload. The GX does it." = "Los ajustes marcados con la flecha requieren reiniciar el equipo tras la carga. El GX lo hace.";

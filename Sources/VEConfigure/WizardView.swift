@@ -19,12 +19,23 @@ final class WizardModel: ObservableObject, Identifiable {
     @Published private(set) var stepNumber = 0
     @Published var finished = false
 
-    init(composer: AssistantComposer, assistant: String, title: String, languages: [String],
+    /// Steps seen in the last full build of this assistant (unknown for a new one; paths can change with answers).
+    let expectedSteps: Int?
+
+    /// "Energy Storage System · Step 2 of 9" (the total only when it is known and still holds).
+    var progress: String {
+        let n = max(stepNumber, 1)
+        if let total = expectedSteps, n <= total { return "\(title) · " + L("Step %@ of %@", "\(n)", "\(total)") }
+        return "\(title) · " + L("Step %@", "\(n)")
+    }
+
+    init(composer: AssistantComposer, assistant: String, title: String, languages: [String], expectedSteps: Int? = nil,
          completion: @escaping (AssistantBuildResult?) -> Void) {
         self.composer = composer
         self.title = title
         self.languages = languages
         self.completion = completion
+        self.expectedSteps = expectedSteps
         wizard = composer.wizard(for: assistant)
         refresh(forward: true)
     }
@@ -125,7 +136,6 @@ struct WizardView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(model.title).font(.subheadline).foregroundStyle(.secondary)
             Text(model.content?.title ?? "")
                 .font(.title2.weight(.semibold))
                 .fixedSize(horizontal: false, vertical: true)
@@ -138,7 +148,7 @@ struct WizardView: View {
 
     private var footer: some View {
         HStack {
-            Text(L("Step %@", "\(max(model.stepNumber, 1))"))
+            Text(model.progress)
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
             Spacer()

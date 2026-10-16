@@ -258,17 +258,30 @@ struct CatalogPageView: View {
                 }
             }
             ForEach(visible) { v in
+                let settings = v.rows.filter { $0.control.kind != .text && $0.control.kind != .button }
+                let resetCount = settings.filter { Access.requiresReset($0.control, ctx.config) }.count
+                let allReset = resetCount > 0 && resetCount == settings.count
                 SwiftUI.Section {
                     ForEach(v.rows) { r in
                         CatalogRow(document: document,
-                                   row: RowState(control: r.control, ctx: ctx, enabled: SectionPages.isEnabled(r, page: page.name, ctx), page: page.name),
+                                   row: RowState(control: r.control, ctx: ctx, enabled: SectionPages.isEnabled(r, page: page.name, ctx), page: page.name,
+                                                 showsLock: section != .grid, showsResetMark: !allReset),
                                    openPresets: { ui.showingPresets = true })
                             .onHover { inside in
                                 if inside { focus.hovered = v.lit } else if focus.hovered == v.lit { focus.hovered = nil }
                             }
                     }
                 } header: {
-                    if let t = resolveText(v.section.title, ctx) { Text(t) }
+                    if let t = resolveText(v.section.title, ctx) { Text(capitalizedFirst(t)) }
+                } footer: {
+                    if resetCount > 0 {
+                        Label(allReset ? L("Changing these settings requires a device reset after upload. The GX does it.")
+                                       : L("Settings marked with the arrow require a device reset after upload. The GX does it."),
+                              systemImage: "arrow.clockwise")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
             }
             if visible.isEmpty {

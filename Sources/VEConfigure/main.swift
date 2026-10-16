@@ -220,7 +220,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let act = Process()
         act.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
         act.arguments = ["-e", "tell application id \"local.veconfigure.mac\" to activate"]
-        try? act.run(); act.waitUntilExit()
+        try? act.run()   // do not wait: the AppleEvent is answered by this very run loop
         try? await Task.sleep(nanoseconds: 1_000_000_000)
         for dark in [false, true] {
             NSApp.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)

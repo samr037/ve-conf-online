@@ -203,3 +203,6 @@
 "VE.Bus configuration" = "VE.Bus configuration";
 "Export Settings…" = "Export Settings…";
 "Print Settings…" = "Print Settings…";
+"Step %@ of %@" = "Step %@ of %@";
+"Changing these settings requires a device reset after upload. The GX does it." = "Changing these settings requires a device reset after upload. The GX does it.";
+"Settings marked with the arrow require a device reset after upload. The GX does it." = "Settings marked with the arrow require a device reset after upload. The GX does it.";

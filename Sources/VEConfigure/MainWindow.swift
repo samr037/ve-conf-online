@@ -61,12 +61,29 @@ final class DiagramFocus: ObservableObject {
 
 private struct FocusedDiagram: View {
     @ObservedObject var focus: DiagramFocus
+    @ObservedObject var document: ConfigDocument
     var fallback: Set<DiagramPart>
-    var model: String
-    var hasSecondInput: Bool
 
     var body: some View {
-        SystemDiagram(lit: focus.hovered ?? (focus.page.isEmpty ? fallback : focus.page), model: model, hasSecondInput: hasSecondInput)
+        let c = document.config
+        SystemDiagram(lit: focus.hovered ?? (focus.page.isEmpty ? fallback : focus.page), model: c.modelName,
+                      hasSecondInput: c.hasSecondACInput, annotations: annotations)
+    }
+
+    /// Key values written on the conductor they govern: AC-in limit, AC-out voltage, absorption/float voltages.
+    private var annotations: [DiagramPart: DiagramAnnotation] {
+        let c = document.config, b = document.baseline
+        func text(_ id: Int, _ unit: String) -> String? {
+            guard let info = c.info.info(id), info.isSupported else { return nil }
+            return Labels.number(info.display(c.raw(id)), step: info.step) + " " + unit
+        }
+        var out: [DiagramPart: DiagramAnnotation] = [:]
+        if let t = text(6, "A") { out[.acIn] = .init(text: t, changed: c.raw(6) != b.raw(6)) }
+        if let t = text(5, "V") { out[.acOut] = .init(text: t, changed: c.raw(5) != b.raw(5)) }
+        if let abs = text(2, "V"), let float = text(3, "V") {
+            out[.battery] = .init(text: "\(abs) · \(float)", changed: c.raw(2) != b.raw(2) || c.raw(3) != b.raw(3))
+        }
+        return out
     }
 }
 
@@ -82,8 +99,7 @@ struct MainWindow: View {
         } detail: {
             let section = state.section ?? .general
             VStack(spacing: 0) {
-                FocusedDiagram(focus: state.focus, fallback: section.lit, model: document.config.modelName,
-                               hasSecondInput: document.config.hasSecondACInput)
+                FocusedDiagram(focus: state.focus, document: document, fallback: section.lit)
                 Divider()
                 SectionView(section: section, document: document, state: state)
             }

@@ -118,11 +118,6 @@ struct SettingLabel: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            // Changed marker: a short blue conductor stub, the diagram's "lit" vocabulary.
-            Capsule()
-                .fill(changed ? Theme.changed : .clear)
-                .frame(width: 3, height: 14)
-                .accessibilityHidden(true)
             Text(text)
             if changed { Text(L("changed")).font(.caption2).foregroundStyle(Theme.changed).accessibilityHidden(false) }
         }
@@ -166,6 +161,12 @@ func resolveRawText(_ t: CatalogText?, _ ctx: RuleContext) -> String? {
     return s.isEmpty ? nil : s
 }
 
+/// Victron writes some labels in lower case ("waiting time", "enable AES"); keep the wording, capitalise the first letter.
+func capitalizedFirst(_ s: String) -> String {
+    guard let f = s.first, f.isLowercase else { return s }
+    return f.uppercased() + s.dropFirst()
+}
+
 /// Removes VE Configure's THandyLabel markup (\FS:1\, \IS\, \IL:url\ …).
 func stripMarkup(_ s: String) -> String {
     s.replacingOccurrences(of: #"\\[A-Z]{2}(:[^\\]*)?\\"#, with: "", options: .regularExpression)
@@ -177,11 +178,17 @@ struct RowState {
     let ctx: RuleContext
     let enabled: Bool
     let page: String?
+    /// False on pages that already carry the password banner.
+    var showsLock = true
+    /// False when the whole section requires a reset (said once in the section footer instead).
+    var showsResetMark = true
 
     var codec: ValueCodec? { ValueCodec(control: control) }
     var config: DeviceConfiguration { ctx.config }
 
-    var label: String {
+    var label: String { capitalizedFirst(rawLabel) }
+
+    private var rawLabel: String {
         if control.name == "StopChargeBelowTBatSettingEdit" { return L("Battery temperature limit") }
         let l = resolveRawText(control.label ?? control.caption, ctx)
         if let l, l.count > 3, l != "for" { return L10n.catalog(l) }
@@ -199,7 +206,7 @@ struct RowState {
 
     var unit: String? {
         guard var u = control.unit, !u.isEmpty else { return nil }
-        if u == "Hr" { u = "h" } else if u == "seconds" { u = "s" }
+        if u == "Hr" { u = "h" } else if u == "seconds" { u = "s" } else if u == "deg C" || u == "degC" { u = "°C" }
         return L10n.catalog(u)
     }
 
@@ -230,22 +237,18 @@ struct CatalogLabel: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Capsule()
-                .fill(row.changed ? Theme.changed : .clear)
-                .frame(width: 3, height: 14)
-                .accessibilityHidden(true)
             Text(row.label)
                 .fixedSize(horizontal: false, vertical: true)
-            if row.locked {
+            if row.locked && row.showsLock {
                 Image(systemName: "lock.fill")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .help(L("Protected by the grid code password"))
                     .accessibilityLabel(L("Locked, grid code password required"))
             }
-            if row.resetRequired {
-                Image(systemName: "arrow.clockwise.circle")
-                    .font(.caption)
+            if row.resetRequired && row.showsResetMark {
+                Image(systemName: "arrow.clockwise")
+                    .font(.callout)
                     .foregroundStyle(Theme.nonDefault)
                     .help(L("A change requires a device reset after upload"))
                     .accessibilityLabel(L("Requires reset"))
@@ -542,9 +545,11 @@ struct CatalogChoiceRow: View {
             .opacity(row.enabled ? 1 : 0.55)
         } else {
         LabeledContent {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 picker(opts, selection: selection, style: style)
                     .disabled(!editable)
+                // Same trailing edge as numeric rows: their unit column sits between stepper and ⓘ.
+                Color.clear.frame(width: 44, height: 1)
                 InfoButton(row: row)
             }
         } label: { CatalogLabel(row: row) }
@@ -570,7 +575,8 @@ struct CatalogChoiceRow: View {
         }
         .labelsHidden()
         switch style {
-        case .menu: p.pickerStyle(.menu).frame(maxWidth: row.control.name == "GridCodeComboBox" ? 420 : 300)
+        case .menu:
+            if row.control.name == "GridCodeComboBox" { p.pickerStyle(.menu).frame(maxWidth: 420, alignment: .trailing) } else { p.pickerStyle(.menu).fixedSize() }
         case .segmented: p.pickerStyle(.segmented).fixedSize()
         case .radio: p.pickerStyle(.radioGroup).fixedSize(horizontal: false, vertical: true)
         }

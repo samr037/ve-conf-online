@@ -134,18 +134,53 @@ final class AssistantsModel: ObservableObject {
     }
 
     private func describe(_ c: AssistantComposer, steps: [AssistantStepPresentation]) -> [Installed] {
-        c.items.enumerated().map { i, item in
+        stepCounts = Dictionary(grouping: steps, by: \.assistant).mapValues(\.count)
+        return c.items.enumerated().map { i, item in
             let script = item.package.script(preferring: AssistantLibraryStore.languages).map { WizardText($0.bytes) }
             var summary: [(String, String)] = []
             for p in steps where p.assistant == item.name && p.step.inSummary {
                 let content = WizardStepContent(step: p.step, text: script, format: p.format)
-                let text = Self.answerText(p, content).replacingOccurrences(of: "\t", with: " ")
-                    .split(separator: " ", omittingEmptySubsequences: true).joined(separator: " ")
-                summary.append((content.title, text))
+                summary.append((content.title, Self.tidy(Self.answerText(p, content))))
             }
             return Installed(id: i, package: item.package, title: Self.title(of: item.package), summary: summary)
         }
     }
+
+    /// Victron lays summaries out with tabs (`\TI\`): one tab-separated cell per line, "-" cells become bullets.
+    static func tidy(_ s: String) -> String {
+        var cells: [String] = []
+        for raw in s.components(separatedBy: "\n") {
+            for cell in raw.components(separatedBy: "\t") {
+                let c = cell.split(separator: " ", omittingEmptySubsequences: true).joined(separator: " ")
+                if !c.isEmpty { cells.append(c) }
+            }
+        }
+        var out: [String] = []
+        var bulletNext = false
+        for var c in cells {
+            if c == "-" || c == "•" { bulletNext = true; continue }
+            // Inline lists "a: - b - c" become one bullet per item.
+            let parts = c.components(separatedBy: " - ")
+            if parts.count > 1 {
+                if !parts[0].isEmpty { out.append(parts[0].hasPrefix("- ") ? "• " + parts[0].dropFirst(2) : parts[0]) }
+                out += parts.dropFirst().map { "• " + $0 }
+                bulletNext = false
+                continue
+            }
+            if c.hasPrefix("- ") { c = "• " + c.dropFirst(2) }
+            if bulletNext { c = "• " + c; bulletNext = false }
+            // "0.25 C" + "= 46,00 V" and "label:" + value belong on one line.
+            if let last = out.last, c.hasPrefix("=") || last.hasSuffix("=") {
+                out[out.count - 1] = last + " " + c
+            } else {
+                out.append(c)
+            }
+        }
+        return out.joined(separator: "\n")
+    }
+
+    /// Steps of each assistant in the last build (for the wizard's "Step n of N").
+    private(set) var stepCounts: [String: Int] = [:]
 
     static func answerText(_ p: AssistantStepPresentation, _ content: WizardStepContent) -> String {
         func lineText(_ l: [WizardLine]) -> String { l.first.map { $0.runs.map(\.text).joined() } ?? "" }
@@ -169,7 +204,7 @@ final class AssistantsModel: ObservableObject {
                         return p.step.fields[i].display(v)
                     }
                 }.joined()
-            }.joined(separator: " ").trimmingCharacters(in: .whitespaces)
+            }.joined(separator: "\n").trimmingCharacters(in: .whitespaces)
         }
     }
 
@@ -188,7 +223,8 @@ final class AssistantsModel: ObservableObject {
         }
         guard let name = index.map({ c.items[$0].name }) ?? package?.baseName else { return nil }
         let title = package.map(Self.title(of:)) ?? installed.first { $0.id == index }?.title ?? name
-        return WizardModel(composer: c, assistant: name, title: title, languages: AssistantLibraryStore.languages) { [weak self] result in
+        return WizardModel(composer: c, assistant: name, title: title, languages: AssistantLibraryStore.languages,
+                           expectedSteps: package == nil ? stepCounts[name] : nil) { [weak self] result in
             guard let self else { return }
             guard let result else { (c.items, c.answers) = snapshot; return }
             self.program(actionName: package != nil ? L("Add %@", title) : L("Configure %@", title), wizardChanges: result.vecChanges) {

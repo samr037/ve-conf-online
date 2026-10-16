@@ -95,6 +95,7 @@ private struct AssistantsContent: View {
                                 GridRow {
                                     Text(row.label).foregroundStyle(.secondary)
                                     Text(row.value).font(.callout.monospacedDigit())
+                                        .fixedSize(horizontal: false, vertical: true)
                                 }
                                 .font(.callout)
                             }
@@ -107,6 +108,9 @@ private struct AssistantsContent: View {
             Text(L("Installed"))
         } footer: {
             Text(L("Assistants run in this order inside the inverter. Changing one re-programs all of them; review the change list before saving."))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
