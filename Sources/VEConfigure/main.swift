@@ -12,6 +12,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = buildMenu()
         let args = CommandLine.arguments
+        #if DEBUG
+        // Design-review hooks; debug builds only (scripts/build-app.sh with VEC_CONFIG=debug for an installed app).
         if let i = args.firstIndex(of: "--capture"), i + 2 < args.count {
             Task { await captureWindows(file: URL(fileURLWithPath: args[i + 1]), dir: URL(fileURLWithPath: args[i + 2])) }
             return
@@ -20,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             Task { await renderSnapshots(file: URL(fileURLWithPath: args[i + 1]), dir: URL(fileURLWithPath: args[i + 2])) }
             return
         }
+        #endif
         // Skip options and their values (--language xx, -AppleLanguages (fr)).
         var files: [URL] = []
         var rest = args.dropFirst()[...]
@@ -257,6 +260,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         return main
     }
 
+    #if DEBUG
     // MARK: Snapshots (visual verification without screen-recording permission)
 
     /// Real on-screen captures (window key, toolbar and materials drawn) with `screencapture -l`, for design review.
@@ -341,6 +345,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if CommandLine.arguments.contains("--export") { print(SettingsReport.plainText(for: doc)) }
         exit(0)
     }
+    #endif
 }
 
 enum SettingFileType {
@@ -349,6 +354,7 @@ enum SettingFileType {
     static var all: [UTType] { [rvsc, vsc].compactMap { $0 } }
 }
 
+#if DEBUG
 @MainActor
 enum Snapshot {
     static func render<V: View>(_ view: V, size: NSSize, dark: Bool, to url: URL) async {
@@ -366,6 +372,7 @@ enum Snapshot {
         window.orderOut(nil)
     }
 }
+#endif
 
 let app = NSApplication.shared
 let delegate = MainActor.assumeIsolated { AppDelegate() }
