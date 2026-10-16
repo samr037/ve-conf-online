@@ -25,6 +25,7 @@ enum Visibility {
 
     static func isVisible(_ g: CatalogGroup, _ ctx: RuleContext) -> Bool {
         if (g.tag ?? 0) & 16 != 0 { return false }
+        if let shown = ReactivePanels.isVisible(g.name, ctx), !shown { return false }
         if g.visibleAtDesign == false && (g.visibleWhen ?? []).isEmpty { return false }
         if let rules = Catalog.shared.conditions(for: g.name, kind: "visibleWhen"), !ctx.all(rules) { return false }
         return ctx.all(g.visibleWhen)

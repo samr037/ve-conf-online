@@ -102,11 +102,49 @@ enum PageLayout {
                     } else {
                         process(g.children, ancestors: ancestors + [g])
                     }
+                case .pageControl(let pc):
+                    // A tab control inside a page (VDE reactive power: cos φ / Q sheets): each sheet is a section, its
+                    // visibility carried by an ancestor named after the sheet (see ReactivePanels).
+                    for sheet in pc.pages {
+                        flush()
+                        current = LayoutSection(id: sheet.name, title: ReactivePanels.title(sheet: sheet.name))
+                        let anchor = CatalogGroup(kind: .panel, name: sheet.name, caption: nil, tag: nil, frame: nil, visibleAtDesign: nil,
+                                                  enabledWhen: nil, visibleWhen: nil, children: [])
+                        process(sheet.children, ancestors: ancestors + [anchor])
+                        flush()
+                    }
                 default:
                     break
                 }
             }
         }
+    }
+}
+
+/// grid.vde.reactiveType (FUN_0054f3ac): the reactive-power type picker shows one sheet (cos φ for types 0–1,
+/// Q for 2–3) and in it one panel: 0 fixed cos φ, 1 cos φ(P) curve, 2 fixed Q, 3 Q(U) curve.
+enum ReactivePanels {
+    static let typeExpr = "raw(ctl.ReactivePowerTypeSettingComboBox)"
+    static let types: [String: Set<Int>] = [
+        "VDECosPhiCurveTabSheet": [0, 1], "VDEQCurveTabSheet": [2, 3],
+        "VDECosPhiFixedSettings": [0], "VDECosPhiCurveSettings": [1], "VDEQFixedSettings": [2], "VDEQCurveSettings": [3],
+    ]
+
+    /// nil when the group is not one of the reactive-power panels; false when the type is unknown.
+    static func isVisible(_ name: String, _ ctx: RuleContext) -> Bool? {
+        guard let set = types[name] else { return nil }
+        guard let e = ExprParser.parse(typeExpr), let t = ctx.eval(e)?.number else { return false }
+        return set.contains(Int(t))
+    }
+
+    /// Section title: the picker's item text for the panel shown.
+    static func title(sheet: String) -> CatalogText? {
+        guard let set = types[sheet], let items = Catalog.shared.controls["ReactivePowerTypeSettingComboBox"]?.items else { return nil }
+        var t = CatalogText("")
+        t.variants = set.sorted().compactMap { v in
+            items.first { $0.value == v }.map { CatalogText.Variant(when: "\(typeExpr) == \(v)", text: $0.text.fallback) }
+        }
+        return t
     }
 }
 
