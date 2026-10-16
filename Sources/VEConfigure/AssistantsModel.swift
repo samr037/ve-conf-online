@@ -15,22 +15,48 @@ final class AssistantLibraryStore: ObservableObject {
 
     private init() { load() }
 
+    /// Number in a library file name (`all112.vfp` → 112); 0 when it has none.
+    static func version(of url: URL) -> Int {
+        url.deletingPathExtension().lastPathComponent.split { !$0.isNumber }.first.flatMap { Int($0) } ?? 0
+    }
+
+    /// Loads the newest library that parses: `allNNN.vfp` sorted by NNN as a number, falling back to older ones.
     func load() {
         let fm = FileManager.default
         let files = (try? fm.contentsOfDirectory(at: Self.folder, includingPropertiesForKeys: nil)) ?? []
-        let vfp = files.filter { $0.pathExtension.lowercased() == "vfp" }.sorted { $0.lastPathComponent < $1.lastPathComponent }
-        guard let latest = vfp.last, let lib = try? AssistantLibrary(contentsOf: latest) else { library = nil; return }
-        library = lib
-        fileName = latest.lastPathComponent
+        let vfp = files.filter { $0.pathExtension.lowercased() == "vfp" }
+            .sorted { (Self.version(of: $0), $0.lastPathComponent) > (Self.version(of: $1), $1.lastPathComponent) }
+        for url in vfp {
+            if let lib = try? AssistantLibrary(contentsOf: url) {
+                library = lib
+                fileName = url.lastPathComponent
+                return
+            }
+        }
+        library = nil
+        fileName = nil
     }
 
-    /// Copies a user-chosen `allNNN.vfp` into Application Support.
+    /// Copies a user-chosen library (`allNNN.vfp`, whatever its extension now) into Application Support once it
+    /// parses. The installed copy is replaced atomically; importing the installed file itself changes nothing.
     func importLibrary(from url: URL) throws {
-        _ = try AssistantLibrary(contentsOf: url)   // validate first
-        try FileManager.default.createDirectory(at: Self.folder, withIntermediateDirectories: true)
-        let dest = Self.folder.appendingPathComponent(url.lastPathComponent)
-        if FileManager.default.fileExists(atPath: dest.path) { try FileManager.default.removeItem(at: dest) }
-        try FileManager.default.copyItem(at: url, to: dest)
+        _ = try AssistantLibrary(contentsOf: url)   // validate first: nothing is touched if it does not parse
+        let fm = FileManager.default
+        try fm.createDirectory(at: Self.folder, withIntermediateDirectories: true)
+        let name = url.pathExtension.lowercased() == "vfp" ? url.lastPathComponent : url.deletingPathExtension().lastPathComponent + ".vfp"
+        let dest = Self.folder.appendingPathComponent(name)
+        if dest.standardizedFileURL.resolvingSymlinksInPath() == url.standardizedFileURL.resolvingSymlinksInPath() {
+            load()
+            return
+        }
+        let staging = try fm.url(for: .itemReplacementDirectory, in: .userDomainMask, appropriateFor: dest, create: true)
+            .appendingPathComponent(name)
+        try fm.copyItem(at: url, to: staging)
+        if fm.fileExists(atPath: dest.path) {
+            _ = try fm.replaceItemAt(dest, withItemAt: staging)
+        } else {
+            try fm.moveItem(at: staging, to: dest)
+        }
         load()
     }
 
