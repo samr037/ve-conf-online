@@ -156,7 +156,7 @@ private final class Env: CalculatorHost {
         #expect(composer.answers["ESS"]?.answers["alSystem"]?.value == 4)
         let b = composer.build()
         #expect(b.success, "\(b.messages)")
-        #expect(composer.image(code: b.code) == config.data.assistantMemory)
+        #expect(try composer.image(code: b.code) == config.data.assistantMemory)
     }
 
     @Test func imageChecksumMatchesDevice() throws {
@@ -221,7 +221,7 @@ private final class Env: CalculatorHost {
                 report.append("\(p.baseName): build — \(b.messages.first { $0.kind == .fatal || $0.kind == .error }?.text ?? "?")")
                 continue
             }
-            let image = c.image(code: b.code)
+            let image = try c.image(code: b.code)
             let back = try AssistantComposer(library: library)
             back.meta = c.meta
             let r = try back.reconstruct(image: image)

@@ -142,7 +142,7 @@ func reconstruct(_ args: [String]) {
             }
             // Cold rebuild from the recovered answers only (no device binary), then the full image.
             let b = composer.build()
-            let image = composer.image(code: b.code, size: c.data.assistantMemory.count)
+            let image = try composer.image(code: b.code, size: c.data.assistantMemory.count)
             let same = image == c.data.assistantMemory
             print("  rebuild from answers: \(b.success ? "OK" : "FAILED"), \(b.code.count) bytes; full image \(same ? "IDENTICAL to the device" : "DIFFERS")")
             if !same, let d = zip(image, c.data.assistantMemory).enumerated().first(where: { $0.element.0 != $0.element.1 }) {
@@ -188,7 +188,7 @@ case "wizard" where args.count >= 3:
                 }
                 w.next(answer)
             case .finished(let r):
-                let img = composer.image(code: r.code, size: c.data.assistantMemory.count)
+                let img = try composer.image(code: r.code, size: c.data.assistantMemory.count)
                 print("  finished after \(n) steps; image \(img == c.data.assistantMemory ? "IDENTICAL to the device" : "differs"); settings changed: \(r.vecChanges.keys.sorted())")
                 break loop
             case .failed(let m): print("  failed: \(m.prefix(5))"); break loop
@@ -212,7 +212,7 @@ case "install" where args.count >= 5:
         composer.meta = MetaGenerator.source(for: target)
         let r = composer.build()
         guard r.success else { fail("build failed: \(r.messages.prefix(5))") }
-        let (out, battery) = composer.apply(r, to: target)
+        let (out, battery) = try composer.apply(r, to: target)
         if let battery { print("  note: assistants selected battery preset \(battery)") }
         guard let o = args.firstIndex(of: "-o"), o + 1 < args.count else { fail(usage) }
         try out.settingFile().write(to: URL(fileURLWithPath: args[o + 1]))

@@ -271,7 +271,7 @@ final class AssistantsModel: ObservableObject {
             message = L("Not enough assistant memory: %@ bytes needed, %@ available.", "\(needed)", "\(memorySize)")
             return
         }
-        let (new, battery) = c.apply(r, to: document.config, extraChanges: wizardChanges)
+        guard let (new, battery) = try? c.apply(r, to: document.config, extraChanges: wizardChanges) else { rollback(); return }
         lastImage = new.data.assistantMemory
         document.replace(with: new, actionName: actionName)
         if let battery, battery > 0 { message = L("The assistant selected battery preset %@. Check the Charger page.", "\(battery)") }

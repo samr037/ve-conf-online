@@ -105,14 +105,32 @@ public final class AssistantComposer {
         [0xA7, 0xFE, 0x00, 0x00, 0x57, 0x01] + [UInt8](repeating: 0xFF, count: size - 6)
     }
 
-    /// Applies a successful build to a configuration: settings changed by the assistants (clamped to the device
-    /// range, as FUN_00516420 does) and the new program image. `BatteryType_VEC` is returned for the caller,
-    /// which owns the battery presets.
+    /// Size of the assistant program memory: VE Configure only ever handles 4096 bytes.
+    public static let memorySize = 4096
+
+    /// Bytes an image needs: code, the ID directory (framework + assistants) and the 4-byte checksum.
+    public func bytesNeeded(code: [UInt8]) -> Int { code.count + 2 * allPackages.count + 4 }
+
+    /// Applies a successful build to a configuration: the battery preset an assistant selected (`BatteryType_VEC`,
+    /// through `batteryPreset`, owned by the caller), then the settings changed by the assistants (clamped to the
+    /// device range, as FUN_00516420 does), then the new program image. Throws when the build failed or the program
+    /// does not fit the configuration's assistant memory.
     public func apply(_ result: AssistantBuildResult, to config: DeviceConfiguration,
-                      extraChanges: [String: Value] = [:]) -> (DeviceConfiguration, batteryType: Int?) {
+                      extraChanges: [String: Value] = [:],
+                      batteryPreset: ((Int, inout DeviceConfiguration) -> Void)? = nil) throws -> (DeviceConfiguration, batteryType: Int?) {
+        guard result.success else {
+            throw AssistantError.buildFailed(result.messages.first { $0.kind == .fatal || $0.kind == .error }?.text ?? "")
+        }
+        let size = config.data.assistantMemory.count
+        let memory = items.isEmpty ? try Self.emptyImage(checkedSize: size) : try image(code: result.code, size: size)
         var c = config
         let targets = MetaGenerator.vecTargets(config)
         let changes = extraChanges.merging(result.vecChanges) { _, new in new }
+        var battery: Int? = nil
+        if case .int(let b)? = changes["BatteryType_VEC"] {
+            battery = Int(b)
+            if b > 0 { batteryPreset?(Int(b), &c) }
+        }
         for (name, value) in changes {
             guard case .int(let v) = value, let target = targets[name] else { continue }
             switch target {
@@ -124,11 +142,13 @@ public final class AssistantComposer {
                 c.setFlag(n, v != 0)
             }
         }
-        let size = config.data.assistantMemory.count
-        c.data.assistantMemory = items.isEmpty ? Self.emptyImage(size: size) : image(code: result.code, size: size)
-        var battery: Int? = nil
-        if case .int(let b)? = changes["BatteryType_VEC"] { battery = Int(b) }
+        c.data.assistantMemory = memory
         return (c, battery)
+    }
+
+    static func emptyImage(checkedSize size: Int) throws -> [UInt8] {
+        guard size == memorySize else { throw AssistantError.badMemorySize(size) }
+        return emptyImage(size: size)
     }
 
     /// Starts the wizard of one assistant (state 5); the others replay their stored answers.
@@ -204,32 +224,35 @@ public final class AssistantComposer {
     }
 
     /// Complete device image: code, 0xFF padding, IDs (asfStop lowest … asfStart highest), 4-byte checksum.
-    public func image(code: [UInt8], size: Int = 4096) -> [UInt8] {
-        var img = image(code: code, size: size, trailer: [0, 0, 0, 0])
-        let c = Self.checksum(img[0..<(size - 4)])
-        for k in 0..<4 { img[size - 4 + k] = UInt8(c >> (8 * UInt32(k)) & 0xFF) }
-        return img
-    }
-
-    /// Image of `size` bytes: code, 0xFF padding, IDs (asfStop first … asfStart last), trailer.
-    public func image(code: [UInt8], size: Int = 4096, trailer: [UInt8]) -> [UInt8] {
-        var img = code + [UInt8](repeating: 0xFF, count: max(0, size - code.count))
-        var p = size - trailer.count
+    /// Throws unless `size` is the 4096-byte assistant memory and everything fits in it.
+    public func image(code: [UInt8], size: Int = AssistantComposer.memorySize) throws -> [UInt8] {
+        guard size == Self.memorySize else { throw AssistantError.badMemorySize(size) }
+        let needed = bytesNeeded(code: code)
+        guard needed <= size else { throw AssistantError.imageTooLarge(needed: needed, size: size) }
+        var img = code + [UInt8](repeating: 0xFF, count: size - code.count)
+        var p = size - 4
         for pkg in allPackages {
             p -= 2
             img[p] = UInt8(pkg.id & 0xFF)
             img[p + 1] = UInt8(pkg.id >> 8)
         }
-        for (k, b) in trailer.enumerated() { img[size - trailer.count + k] = b }
+        let c = Self.checksum(img[0..<(size - 4)])
+        for k in 0..<4 { img[size - 4 + k] = UInt8(c >> (8 * UInt32(k)) & 0xFF) }
         return img
     }
 }
 
 public enum AssistantError: Error, CustomStringConvertible {
     case unknownAssistant(UInt32)
+    case imageTooLarge(needed: Int, size: Int)
+    case badMemorySize(Int)
+    case buildFailed(String)
     public var description: String {
         switch self {
         case .unknownAssistant(let id): String(format: "An Assistant, which is not on your system (ID 0x%04X), is installed in the device.", id)
+        case .imageTooLarge(let needed, let size): "Not enough assistant memory: \(needed) bytes needed, \(size) available."
+        case .badMemorySize(let n): "The assistant memory of this configuration is \(n) bytes; 4096 expected."
+        case .buildFailed(let m): m.isEmpty ? "The assistants could not be assembled." : m
         }
     }
 }
