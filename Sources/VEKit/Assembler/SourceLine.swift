@@ -102,6 +102,23 @@ struct SourceLine: Equatable {
     }
 }
 
+/// Line splitting of Delphi `TStrings.Text`, used for sources and wizard texts: CR, LF and CRLF each end a line
+/// (so do LF CR: that is two breaks), a NUL ends the text, and a final line break adds no empty line.
+enum TextLines {
+    static func split(_ text: [UInt8]) -> [[UInt8]] {
+        var lines: [[UInt8]] = []
+        var i = 0
+        while i < text.count, text[i] != 0 {
+            let start = i
+            while i < text.count, text[i] != 0, text[i] != 0x0A, text[i] != 0x0D { i += 1 }
+            lines.append(Array(text[start..<i]))
+            if i < text.count, text[i] == 0x0D { i += 1 }
+            if i < text.count, text[i] == 0x0A { i += 1 }
+        }
+        return lines
+    }
+}
+
 /// A list of lines with a header at index 0 (never assembled).
 final class LineList {
     let header: String
@@ -110,12 +127,7 @@ final class LineList {
 
     init(header: String, text: [UInt8]) {
         self.header = header
-        var lines: [[UInt8]] = [[]]
-        var current: [UInt8] = []
-        for c in text {
-            if c == 0x0A { lines.append(current); current = [] } else if c != 0x0D { current.append(c) }
-        }
-        if !current.isEmpty { lines.append(current) }
+        let lines = [[]] + TextLines.split(text)
         raw = lines
         parsed = Array(repeating: nil, count: lines.count)
     }

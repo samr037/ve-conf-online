@@ -157,3 +157,34 @@ private extension Assembler {
         #expect(a.errors.contains("internal error with while construction"), "\(a.messages)")
     }
 }
+
+@Suite struct LineBreakTests {
+    @Test func everyDelphiLineBreakSplits() {
+        func lines(_ s: String) -> [String] { TextLines.split(Latin1.encode(s)).map { String(decoding: $0, as: Latin1.self) } }
+        #expect(lines("a\rb\r\nc\nd") == ["a", "b", "c", "d"])
+        #expect(lines("a\n\rb") == ["a", "", "b"])
+        #expect(lines("a\r\n") == ["a"])
+        #expect(lines("a\n\n") == ["a", ""])
+        #expect(lines("") == [])
+        #expect(lines("a\nb\u{0}\nc") == ["a", "b"])
+    }
+
+    @Test func loneCRSeparatesSourceLines() {
+        let a = asm("X .SET 1\rY .SET 2\r DATA 7\r\n DATA 8\n DATA X+Y+6")
+        #expect(a.errors.isEmpty, "\(a.messages)")
+        #expect(a.code == [7, 8, 9])
+        let l = LineList(header: "h", text: Latin1.encode("A .SET 1\r B .SET 2\r\nC .SET 3"))
+        #expect(l.count == 4)
+    }
+
+    @Test func nulEndsASource() {
+        let a = asm(" DATA 1\n\u{0} DATA 2\n DATA 3")
+        #expect(a.code == [1])
+    }
+
+    @Test func loneCRSeparatesWizardTextLines() {
+        let t = WizardText(Latin1.encode("#StringArray\rk = v\r#X\nTitle\r\n.Option\r"))
+        #expect(t.lines("StringArray") == ["k = v"])
+        #expect(t.lines("X") == ["Title", ".Option"])
+    }
+}
