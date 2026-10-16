@@ -42,6 +42,26 @@ public enum MetaGenerator {
         return [" .NOLIST", " .GLOBAL True"] + m.lines + [" .GLOBAL False", " .LIST"]
     }
 
+    /// Value text of a ` .EQU` line in a META source (FUN_0050eb9c reads it the same way).
+    public static func equValue(_ name: String, in meta: [UInt8]) -> String? {
+        let prefix = name + " .EQU "
+        for raw in meta.split(separator: 0x0A) {
+            let line = String(decoding: raw.filter { $0 != 0x0D }, as: Latin1.self)
+            if line.hasPrefix(prefix) { return String(line.dropFirst(prefix.count)) }
+        }
+        return nil
+    }
+
+    /// The META source with the ` .EQU` value of `name` replaced (FUN_0050eb9c); unchanged when absent.
+    public static func replacingEqu(_ name: String, with value: String, in meta: [UInt8]) -> [UInt8] {
+        let prefix = name + " .EQU "
+        let text = String(decoding: meta, as: Latin1.self)
+        var lines = text.components(separatedBy: "\r\n")
+        guard let i = lines.firstIndex(where: { $0.hasPrefix(prefix) }) else { return meta }
+        lines[i] = prefix + value
+        return Latin1.encode(lines.joined(separator: "\r\n"))
+    }
+
     /// `_VEC` label → (setting id | flag bit) for reading assistant changes back (docs/re/05-meta.md §write-back).
     public enum Target: Equatable, Sendable { case setting(Int), flag(Int) }
     public static func vecTargets(_ c: DeviceConfiguration) -> [String: Target] {

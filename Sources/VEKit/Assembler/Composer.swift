@@ -160,8 +160,9 @@ public final class AssistantComposer {
 
     // MARK: Device image
 
-    /// Assistant IDs stored at the top of an image, read downward until asfStop.
-    public static func installedIDs(in image: [UInt8], trailer: Int = 4) -> [UInt32] {
+    /// Assistant IDs stored at the top of an image, read downward until the asfStop package (by name when the
+    /// library knows the ID, else the historical 0x000E), an erased word, or 64 entries.
+    public static func installedIDs(in image: [UInt8], library: AssistantLibrary? = nil, trailer: Int = 4) -> [UInt32] {
         var ids: [UInt32] = []
         var p = image.count - trailer - 2
         while p >= 0 {
@@ -169,14 +170,16 @@ public final class AssistantComposer {
             if id == 0xFFFF { break }
             ids.append(id)
             p -= 2
-            if id == 0x000E || ids.count > 64 { break }   // asfStop ends the list
+            let isStop = library?.package(id: id).map { $0.baseName == "asfStop" } ?? (id == 0x000E)
+            if isStop || ids.count > 64 { break }
         }
         return ids
     }
 
-    /// Fills the composer from an image's ID directory (top-down: asfStart, assistants…, asfStop).
+    /// Fills the composer from an image's ID directory (top-down: asfStart, assistants…, asfStop). Memory without a
+    /// directory (erased, or the "assistants removed" stub) holds no assistants.
     public func load(image: [UInt8]) throws {
-        let ids = Self.installedIDs(in: image)
+        let ids = Self.installedIDs(in: image, library: library)
         guard ids.count >= 2 else { items = []; return }
         guard let s = library.package(id: ids.first!), let e = library.package(id: ids.last!) else {
             throw AssistantError.unknownAssistant(ids.first!)
@@ -189,8 +192,25 @@ public final class AssistantComposer {
     }
 
     /// Recovers the user's answers from a device image (state 2) and checks the code re-assembles identically.
+    /// Port of FUN_00515ccc: on a 2614 model (0xA36) that does not read back, try again with `cDeviceInfo xor 3`.
     public func reconstruct(image: [UInt8]) throws -> AssistantBuildResult {
         try load(image: image)
+        guard Self.installedIDs(in: image, library: library).count >= 2 else {
+            answers = [:]
+            return AssistantBuildResult(success: true, code: [], messages: [], answers: [:], cancelled: false)
+        }
+        let first = readBack(image)
+        guard !first.success, MetaGenerator.equValue("cMultiVersion", in: meta).flatMap(Int.init).map({ $0 / 1000 }) == 0xA36,
+              let info = MetaGenerator.equValue("cDeviceInfo", in: meta).flatMap(Int32.init)
+        else { return first }
+        let original = meta
+        meta = MetaGenerator.replacingEqu("cDeviceInfo", with: String(info ^ 3), in: meta)
+        let second = readBack(image)
+        meta = original
+        return second.success ? second : first
+    }
+
+    private func readBack(_ image: [UInt8]) -> AssistantBuildResult {
         let a = makeAssembler { _ in .backReadBuild }
         a.states["META"] = .build
         a.tables = [:]
@@ -198,7 +218,7 @@ public final class AssistantComposer {
         let ok = a.assemble(root: rootList())
         var result = AssistantBuildResult(success: ok, code: a.code, messages: a.messages, answers: a.tables, cancelled: false)
         if ok {
-            let device = Self.trimmed(image, codeLength: a.code.count)
+            let device = Self.trimmed(image, codeLength: a.code.count, trailer: 4 + 2 * allPackages.count)
             if device != Self.trimmed(a.code, codeLength: a.code.count) {
                 let first = zip(device, a.code).enumerated().first { $0.element.0 != $0.element.1 }?.offset ?? min(device.count, a.code.count)
                 result.success = false
@@ -210,8 +230,10 @@ public final class AssistantComposer {
         return result
     }
 
-    static func trimmed(_ b: [UInt8], codeLength: Int) -> [UInt8] {
-        var x = Array(b.prefix(max(codeLength, 0) + 16))
+    /// The code part of a program for comparison: the ID directory and checksum (`trailer` bytes) removed, at most
+    /// 16 bytes past the code, without the trailing erased (0xFF) bytes.
+    static func trimmed(_ b: [UInt8], codeLength: Int, trailer: Int = 0) -> [UInt8] {
+        var x = Array(b.prefix(max(b.count - trailer, 0)).prefix(max(codeLength, 0) + 16))
         while x.last == 0xFF { x.removeLast() }
         return x
     }
