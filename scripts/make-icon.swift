@@ -68,6 +68,10 @@ func render(_ size: CGFloat) -> NSBitmapImageRep {
     return rep
 }
 
+guard CommandLine.arguments.count == 2 else {
+    FileHandle.standardError.write("usage: make-icon.swift <output.iconset directory>\n".data(using: .utf8)!)
+    exit(64)
+}
 let out = CommandLine.arguments[1]
 try? FileManager.default.createDirectory(atPath: out, withIntermediateDirectories: true)
 for (name, px) in [("16x16", 16), ("16x16@2x", 32), ("32x32", 32), ("32x32@2x", 64), ("128x128", 128), ("128x128@2x", 256),

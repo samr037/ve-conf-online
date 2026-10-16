@@ -7,6 +7,8 @@ enum Fixtures {
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
     static func sample(_ name: String) -> URL { root.appendingPathComponent("samples/\(name)") }
     static let library = root.appendingPathComponent("vendor/extracted/VE Configure tools/Assistants/all112.vfp")
+    /// Victron's assistant library lives in the gitignored vendor/ tree; tests that need it skip on a clean clone.
+    static var hasLibrary: Bool { FileManager.default.fileExists(atPath: library.path) }
 }
 
 @Suite struct SettingFileTests {
@@ -25,7 +27,7 @@ enum Fixtures {
     }
 }
 
-@Suite struct AssistantLibraryTests {
+@Suite(.enabled(if: Fixtures.hasLibrary, "needs vendor/ assistant library")) struct AssistantLibraryTests {
     @Test func loadsAllPackages() throws {
         let lib = try AssistantLibrary(contentsOf: Fixtures.library)
         #expect(lib.packages.count == 161)

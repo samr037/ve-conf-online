@@ -144,7 +144,7 @@ private final class Env: CalculatorHost {
 @Suite struct AssistantEndToEndTests {
     /// The user's ESS setup: recover the answers from the device program, re-assemble from those answers
     /// alone, and get the exact 4096-byte image the inverter holds (code, ID directory, checksum).
-    @Test(arguments: ["s2.rvsc", "s5.rvsc"])
+    @Test(.enabled(if: Fixtures.hasLibrary, "needs vendor/ assistant library"), arguments: ["s2.rvsc", "s5.rvsc"])
     func reconstructAndRebuildByteIdentical(name: String) throws {
         let config = try DeviceConfiguration(contentsOf: Fixtures.sample(name))
         let library = try AssistantLibrary(contentsOf: Fixtures.library)
@@ -169,7 +169,7 @@ private final class Env: CalculatorHost {
 }
 
 @Suite struct WizardContentTests {
-    @Test func essSteps() throws {
+    @Test(.enabled(if: Fixtures.hasLibrary, "needs vendor/ assistant library")) func essSteps() throws {
         let lib = try AssistantLibrary(contentsOf: Fixtures.library)
         let ess = try #require(lib.package(id: 0x18C))
         let text = WizardText(try #require(ess.scripts["en"]).bytes)
@@ -203,7 +203,7 @@ private final class Env: CalculatorHost {
     }
 }
 
-@Suite struct LibraryWideTests {
+@Suite(.enabled(if: Fixtures.hasLibrary, "needs vendor/ assistant library")) struct LibraryWideTests {
     /// Every assistant in Victron's library assembles with its default answers on the user's device,
     /// and reads back (reconstruction) to the same program.
     @Test func everyAssistantAssemblesAndReadsBack() throws {

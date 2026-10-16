@@ -44,6 +44,7 @@ enum Section: String, CaseIterable, Identifiable, Hashable {
     }
 }
 
+@MainActor
 final class WindowState: ObservableObject {
     @Published var section: Section? = .general
     @Published var showsChanges = true
@@ -54,6 +55,7 @@ final class WindowState: ObservableObject {
 }
 
 /// The diagram follows the group under the pointer; otherwise it shows the page's parts.
+@MainActor
 final class DiagramFocus: ObservableObject {
     @Published var hovered: Set<DiagramPart>?
     @Published var page: Set<DiagramPart> = []

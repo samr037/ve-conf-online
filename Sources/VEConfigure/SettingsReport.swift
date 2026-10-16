@@ -2,6 +2,7 @@ import AppKit
 import VEKit
 
 /// VE Configure's "Export settings" / "Print settings": every visible setting, page by page, plus the assistants.
+@MainActor
 enum SettingsReport {
     struct Block { var title: String; var rows: [(String, String)] }
 
@@ -82,7 +83,7 @@ enum SettingsReport {
     }
 
     static func print(_ document: ConfigDocument) {
-        let info = NSPrintInfo.shared.copy() as! NSPrintInfo
+        let info = (NSPrintInfo.shared.copy() as? NSPrintInfo) ?? NSPrintInfo()
         info.topMargin = 36; info.bottomMargin = 36; info.leftMargin = 40; info.rightMargin = 40
         info.isVerticallyCentered = false
         let width = info.paperSize.width - info.leftMargin - info.rightMargin

@@ -1,6 +1,9 @@
 vendor/
+/vendor
 ghidra/proj/
 ghidra/out/
 .build/
 *.xcodeproj
 __pycache__/
+.impeccable/review/
+tools/__pycache__/
