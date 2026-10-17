@@ -482,7 +482,12 @@ struct GridTable {
             var defaults: [Int: UInt16] = [:]
             if present.first != 0 {
                 p += 2 * k
-                let bits = (0..<(8 * k)).filter { present[$0 / 8] >> ($0 % 8) & 1 == 1 }
+                var bits: [Int] = []
+                for bit in 0..<(8 * k) {
+                    let byte = present[bit / 8]
+                    let mask = UInt8(1) << (bit % 8)
+                    if byte & mask != 0 { bits.append(bit) }
+                }
                 let count = bits.count - 2
                 for (i, bit) in bits.dropFirst().prefix(max(0, count)).enumerated() {
                     if let v = u16(p + 2 * i) { defaults[128 + bit] = UInt16(v) }
