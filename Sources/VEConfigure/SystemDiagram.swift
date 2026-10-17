@@ -33,7 +33,7 @@ struct SystemDiagram: View {
                 draw(in: &ctx, size: size, phase: reduceMotion ? 0 : context.date.timeIntervalSinceReferenceDate)
             }
         }
-        .frame(height: 132)
+        .frame(height: 140)
         .background(Theme.drafting)
         .accessibilityElement()
         .accessibilityLabel(accessibilitySummary)
@@ -53,7 +53,9 @@ struct SystemDiagram: View {
 
     private func draw(in ctx: inout GraphicsContext, size: CGSize, phase: Double) {
         drawGrid(&ctx, size)
-        let midY = size.height * 0.36
+        // 0.42, not lower: the relay symbol sits a full 14 pt above the Multi block, and the model
+        // label above that — a higher block would clip the relay against the top edge of the canvas.
+        let midY = size.height * 0.42
         let left = max(28, size.width * 0.06)
         let right = size.width - left
         let multi = CGRect(x: size.width * 0.5 - 70, y: midY - 26, width: 140, height: 52)
