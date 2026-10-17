@@ -23,6 +23,14 @@ cp Resources/AppIcon.icns "$APP/Contents/Resources/"
 cp Sources/VEConfigure/Resources/catalog.json Sources/VEConfigure/Resources/catalog-strings.json "$APP/Contents/Resources/"
 for l in Resources/*.lproj; do [ -e "$l" ] && cp -R "$l" "$APP/Contents/Resources/"; done
 cp "$BIN" "$APP/Contents/MacOS/VEConfigure"
+if [ -n "${VEC_VERSION:-}" ]; then
+    case "$VEC_VERSION" in *[!0-9.]*|'') echo "Invalid VEC_VERSION" >&2; exit 1 ;; esac
+    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VEC_VERSION" "$APP/Contents/Info.plist"
+fi
+if [ -n "${VEC_BUILD_NUMBER:-}" ]; then
+    case "$VEC_BUILD_NUMBER" in *[!0-9]*|'') echo "Invalid VEC_BUILD_NUMBER" >&2; exit 1 ;; esac
+    /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VEC_BUILD_NUMBER" "$APP/Contents/Info.plist"
+fi
 codesign --force --sign - --identifier local.veconfigure.mac "$APP"
 codesign --verify "$APP"
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP" >/dev/null 2>&1 || true

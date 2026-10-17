@@ -1,0 +1,95 @@
+name: Test and package
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    env:
+      VEC_BUILD: /tmp/vec-build
+      VEC_APP: /tmp/package/VE Configure.app
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Toolchain and architecture
+        env:
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: |
+          swift --version
+          xcodebuild -version
+          test "$(uname -m)" = "$EXPECTED_ARCH"
+      - name: Tests (private fixtures and vendor library are not included)
+        run: bash scripts/test.sh
+      - name: Version
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          version=0.2.0
+          if [[ "$REF_TYPE" == tag ]]; then
+            [[ "$REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
+            version="${REF_NAME#v}"
+          fi
+          echo "VEC_VERSION=$version" >> "$GITHUB_ENV"
+          echo "VEC_BUILD_NUMBER=$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
+      - name: Release app
+        run: bash scripts/build-app.sh
+      - name: Build and verify disk image
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          export VEC_DMG="$GITHUB_WORKSPACE/dist/VE-Configure-$VEC_VERSION-$ARCH.dmg"
+          bash scripts/build-dmg.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dmg-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: dmg-*
+          merge-multiple: true
+          path: dist
+      - name: Publish private preview release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          cat > /tmp/release-notes.md <<'NOTES'
+          Native macOS configuration editor. Choose arm64 for Apple Silicon or x86_64 for Intel. Requires macOS 14 or later.
+
+          Includes document-scoped grid password verification and local RVSC save authorization. No device connection is made by the app. GX acceptance of saved authorization has not been tested.
+
+          Both architectures are built and tested in GitHub Actions. Tests requiring private device samples or Victron's assistant library are skipped in CI. Import your own assistant library in the app.
+
+          Preview build: ad-hoc signed, not signed with an Apple Developer ID and not notarized. Gatekeeper may block the first launch. SHA-256 files are included with each DMG.
+          NOTES
+          gh release create "$TAG" dist/* --verify-tag --prerelease --title "VE Configure $TAG" --notes-file /tmp/release-notes.md

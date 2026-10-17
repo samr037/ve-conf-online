@@ -85,7 +85,7 @@ scripts/test.sh          # unit + end-to-end tests (VEKit); add --skip LibraryWi
 scripts/build-app.sh     # builds and installs ~/Applications/VE Configure.app
 ```
 
-Tests that need Victron's library skip themselves when `vendor/` is absent.
+Tests that need private fixtures or Victron’s library are skipped when `samples/` or `vendor/` is absent. CI reports these skips; it does not run the private-fixture tests.
 
 ### `vecfg`, the command-line companion
 
@@ -128,3 +128,17 @@ vecfg wizard allNNN.vfp file.rvsc ESS      # walk an assistant headlessly
 Working: every tab, every applicable Assistant, the change list, export and print, four languages.
 
 Not yet: the P(f)/Q(U) curve editors and the CEI/AS4777 derived tables (read-only), the ground-relay rule forced by some grid codes, and a direct MK3 connection (VRM + GX replaces it).
+
+## Downloads and CI
+
+Download a preview DMG from [GitHub Releases](https://github.com/samr037/ve-configure-mac/releases).
+Choose **arm64** for Apple Silicon or **x86_64** for Intel. Open the DMG and drag the app to Applications.
+These builds use an ad-hoc signature. They are not Apple Developer ID signed or notarized; Gatekeeper may block the first launch.
+
+The [Test and package workflow](https://github.com/samr037/ve-configure-mac/actions/workflows/build.yml)
+runs on each main push and pull request. It runs the available tests, builds both architectures,
+then creates and mounts each DMG to verify its app signature and contents. Private samples and the
+Victron library are absent from CI; tests that require them are reported as skipped.
+
+A tag such as `v0.2.0` runs the same checks and publishes both DMGs and SHA-256 checksums as a private
+preview release only after both jobs succeed. Developer ID signing and notarization are not configured.

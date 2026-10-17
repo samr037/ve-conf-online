@@ -7,3 +7,5 @@ ghidra/out/
 __pycache__/
 .impeccable/review/
 tools/__pycache__/
+
+/dist/
