@@ -48,7 +48,7 @@ struct ChangeList: View {
             Spacer()
             Text(L("No changes yet"))
                 .font(.callout.weight(.medium))
-            Text(L("Every setting you change appears here with its previous value, so you can review it before saving."))
+            Text(L("Each change appears here with its old value. Review it before you save."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

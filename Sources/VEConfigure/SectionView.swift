@@ -341,11 +341,11 @@ struct CatalogPageView: View {
     @ViewBuilder private var passwordBanner: some View {
         SwiftUI.Section {
             if Access.gridCodeNeedsPassword(ctx) {
-                Label(L("Grid code settings are protected by the grid code password. VE Configure for Mac cannot verify that password, so these settings are read-only here. Use VE Configure to change them."),
+                Label(L("The grid code password protects these settings. This app cannot verify that password, so they are read-only here. Change them in VE Configure."),
                       systemImage: "lock.fill")
                     .fixedSize(horizontal: false, vertical: true)
             } else if page.name == GridPages.selectionPage {
-                Label(L("No grid code was selected in this file, so the initial selection does not require a password. Make sure to choose the correct country / standard: once sent to the device, a password is required to change or disable it."),
+                Label(L("No grid code is set in this file, so the first selection needs no password. Choose the correct country or standard. Once it is on the device, changing or disabling it needs the password."),
                       systemImage: "lock.open")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -368,7 +368,7 @@ struct BatteryPresetSheet: View {
         let selected = presets.first { $0.id == (ui.presetID ?? current?.id) } ?? presets.first
         VStack(alignment: .leading, spacing: 12) {
             Text(L("Battery Presets")).font(.headline)
-            Text(L("Sets the charger for a battery type in one step. Values are shown for this %@ V system. A preset is not stored in the device: afterwards every value stays editable.", "\(c.dcVoltageClass)"))
+            Text(L("Sets the charger for a battery type in one step. Values shown are for this %@ V system. The preset is not stored in the device; every value stays editable afterwards.", "\(c.dcVoltageClass)"))
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             HStack(alignment: .top, spacing: 16) {
                 List(presets, selection: Binding(get: { selected?.id }, set: { ui.presetID = $0 })) { p in

@@ -175,7 +175,7 @@ struct InfoButton: View {
                         Label(Access.infoText["password"]!, systemImage: "lock").font(.callout)
                     }
                     if let codec = row.codec, !codec.isEditable {
-                        Label(L("This value is derived from several grid words by a VE Configure handler that this app does not reproduce yet. It is shown read-only."), systemImage: "eye")
+                        Label(L("This app does not yet reproduce the VE Configure handler that derives this value from several grid words. It is read-only."), systemImage: "eye")
                             .font(.callout)
                     }
                     let names = Access.refs(of: row.control).map(\.name).filter { !$0.isEmpty }

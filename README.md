@@ -22,7 +22,7 @@
   <img src="docs/images/general-light.png" width="900" alt="General page with the single-line diagram and the change list">
 </p>
 
-It opens the configuration file you download from VRM (**Remote VE Configure**, `.rvsc`), lets you change the settings VE Configure exposes, runs the **Assistants** (ESS, generator start/stop, programmable relay…), and writes a **new** file for you to upload through VRM. The app never talks to a device.
+It opens the configuration file you download from VRM (**Remote VE Configure**, `.rvsc`). You change the settings VE Configure exposes and run the **Assistants** (ESS, generator start/stop, programmable relay…). It writes a **new** file for you to upload through VRM. The app never talks to a device.
 
 > Independent project, not made or endorsed by Victron Energy. Victron Energy, VE.Bus, VE Configure and VRM are trademarks of Victron Energy B.V.
 

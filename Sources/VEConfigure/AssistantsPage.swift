@@ -132,7 +132,7 @@ private struct AssistantsContent: View {
             VStack(alignment: .leading, spacing: 10) {
                 Label(L("Victron's assistant library is needed"), systemImage: "books.vertical")
                     .font(.headline)
-                Text(L("Assistants are Victron's programs. Import the library file (all112.vfp or newer) from a VE Configure installation: it is in “VE Configure tools/Assistants”. It is copied once into this app's support folder."))
+                Text(L("Assistants are Victron's programs. Import the library file (all112.vfp or newer) from a VE Configure installation, under “VE Configure tools/Assistants”. The app copies it once to its support folder."))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Button(L("Import Assistant Library…")) { importLibrary() }
@@ -145,7 +145,7 @@ private struct AssistantsContent: View {
         SwiftUI.Section {
             Label(why, systemImage: "exclamationmark.triangle.fill")
                 .foregroundStyle(Theme.warning)
-            Text(L("The assistant program in this file could not be read back with the installed library. Settings on the other pages can still be changed; the program is kept as it is."))
+            Text(L("The installed library cannot read back the assistant program in this file. You can still change settings on the other pages; the program is kept unchanged."))
                 .foregroundStyle(.secondary)
         }
     }

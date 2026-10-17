@@ -31,9 +31,9 @@
 "Assistants run in this order inside the inverter. Changing one re-programs all of them; review the change list before saving." = "Assistants run in this order inside the inverter. Changing one re-programs all of them; review the change list before saving.";
 "Add Assistant…" = "Add Assistant…";
 "Victron's assistant library is needed" = "Victron's assistant library is needed";
-"Assistants are Victron's programs. Import the library file (all112.vfp or newer) from a VE Configure installation: it is in “VE Configure tools/Assistants”. It is copied once into this app's support folder." = "Assistants are Victron's programs. Import the library file (all112.vfp or newer) from a VE Configure installation: it is in “VE Configure tools/Assistants”. It is copied once into this app's support folder.";
+"Assistants are Victron's programs. Import the library file (all112.vfp or newer) from a VE Configure installation, under “VE Configure tools/Assistants”. The app copies it once to its support folder." = "Assistants are Victron's programs. Import the library file (all112.vfp or newer) from a VE Configure installation, under “VE Configure tools/Assistants”. The app copies it once to its support folder.";
 "Import Assistant Library…" = "Import Assistant Library…";
-"The assistant program in this file could not be read back with the installed library. Settings on the other pages can still be changed; the program is kept as it is." = "The assistant program in this file could not be read back with the installed library. Settings on the other pages can still be changed; the program is kept as it is.";
+"The installed library cannot read back the assistant program in this file. You can still change settings on the other pages; the program is kept unchanged." = "The installed library cannot read back the assistant program in this file. You can still change settings on the other pages; the program is kept unchanged.";
 "Choose allNNN.vfp from “VE Configure tools/Assistants”." = "Choose allNNN.vfp from “VE Configure tools/Assistants”.";
 "general" = "general";
 "Grid code parameter word %@" = "Grid code parameter word %@";
@@ -44,7 +44,7 @@
 "Restore Loaded Value" = "Restore Loaded Value";
 "Changes" = "Changes";
 "No changes yet" = "No changes yet";
-"Every setting you change appears here with its previous value, so you can review it before saving." = "Every setting you change appears here with its previous value, so you can review it before saving.";
+"Each change appears here with its old value. Review it before you save." = "Each change appears here with its old value. Review it before you save.";
 "changed to" = "changed to";
 "Upload the saved file through VRM (Remote VE Configure). The GX resets the inverter if needed." = "Upload the saved file through VRM (Remote VE Configure). The GX resets the inverter if needed.";
 "Save…" = "Save…";
@@ -146,7 +146,7 @@
 "Read %@" = "Read %@";
 "VE.Bus inverter/charger" = "VE.Bus inverter/charger";
 "Changing this setting requires a reset of the device after the file has been uploaded. The GX device does this for you." = "Changing this setting requires a reset of the device after the file has been uploaded. The GX device does this for you.";
-"This setting is protected by the grid code password. VE Configure for Mac cannot verify that password, so protected settings stay read-only here. Use VE Configure to change them." = "This setting is protected by the grid code password. VE Configure for Mac cannot verify that password, so protected settings stay read-only here. Use VE Configure to change them.";
+"The grid code password protects this setting. This app cannot verify that password, so it is read-only here. Change it in VE Configure." = "The grid code password protects this setting. This app cannot verify that password, so it is read-only here. Change it in VE Configure.";
 "Grid Code" = "Grid Code";
 "Microgrid" = "Microgrid";
 "Usage" = "Usage";
@@ -159,10 +159,10 @@
 "The grid code parameters do not match the selected grid code or belong to another firmware version. Select the grid code again to load its defaults (password required)." = "The grid code parameters do not match the selected grid code or belong to another firmware version. Select the grid code again to load its defaults (password required).";
 "Changing these settings requires a device reset after upload. The GX does it." = "Changing these settings requires a device reset after upload. The GX does it.";
 "Settings marked with the arrow require a device reset after upload. The GX does it." = "Settings marked with the arrow require a device reset after upload. The GX does it.";
-"Grid code settings are protected by the grid code password. VE Configure for Mac cannot verify that password, so these settings are read-only here. Use VE Configure to change them." = "Grid code settings are protected by the grid code password. VE Configure for Mac cannot verify that password, so these settings are read-only here. Use VE Configure to change them.";
-"No grid code was selected in this file, so the initial selection does not require a password. Make sure to choose the correct country / standard: once sent to the device, a password is required to change or disable it." = "No grid code was selected in this file, so the initial selection does not require a password. Make sure to choose the correct country / standard: once sent to the device, a password is required to change or disable it.";
+"The grid code password protects these settings. This app cannot verify that password, so they are read-only here. Change them in VE Configure." = "The grid code password protects these settings. This app cannot verify that password, so they are read-only here. Change them in VE Configure.";
+"No grid code is set in this file, so the first selection needs no password. Choose the correct country or standard. Once it is on the device, changing or disabling it needs the password." = "No grid code is set in this file, so the first selection needs no password. Choose the correct country or standard. Once it is on the device, changing or disabling it needs the password.";
 "Battery Presets" = "Battery Presets";
-"Sets the charger for a battery type in one step. Values are shown for this %@ V system. A preset is not stored in the device: afterwards every value stays editable." = "Sets the charger for a battery type in one step. Values are shown for this %@ V system. A preset is not stored in the device: afterwards every value stays editable.";
+"Sets the charger for a battery type in one step. Values shown are for this %@ V system. The preset is not stored in the device; every value stays editable afterwards." = "Sets the charger for a battery type in one step. Values shown are for this %@ V system. The preset is not stored in the device; every value stays editable afterwards.";
 "current" = "current";
 "Apply" = "Apply";
 "Apply Battery Preset" = "Apply Battery Preset";
@@ -180,7 +180,7 @@
 "changed" = "changed";
 "About this setting" = "About this setting";
 "About %@" = "About %@";
-"This value is derived from several grid words by a VE Configure handler that this app does not reproduce yet. It is shown read-only." = "This value is derived from several grid words by a VE Configure handler that this app does not reproduce yet. It is shown read-only.";
+"This app does not yet reproduce the VE Configure handler that derives this value from several grid words. It is read-only." = "This app does not yet reproduce the VE Configure handler that derives this value from several grid words. It is read-only.";
 "Stored in %@" = "Stored in %@";
 "Change %@" = "Change %@";
 "Change stop condition" = "Change stop condition";

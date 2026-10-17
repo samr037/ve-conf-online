@@ -31,9 +31,9 @@
 "Assistants run in this order inside the inverter. Changing one re-programs all of them; review the change list before saving." = "Los asistentes se ejecutan en este orden dentro del inversor. Cambiar uno reprograma todos; revise la lista de cambios antes de guardar.";
 "Add Assistant…" = "Añadir asistente…";
 "Victron's assistant library is needed" = "Se necesita la biblioteca de asistentes de Victron";
-"Assistants are Victron's programs. Import the library file (all112.vfp or newer) from a VE Configure installation: it is in “VE Configure tools/Assistants”. It is copied once into this app's support folder." = "Los asistentes son programas de Victron. Importe el archivo de biblioteca (all112.vfp o posterior) de una instalación de VE Configure: está en «VE Configure tools/Assistants». Se copia una sola vez en la carpeta de soporte de esta app.";
+"Assistants are Victron's programs. Import the library file (all112.vfp or newer) from a VE Configure installation, under “VE Configure tools/Assistants”. The app copies it once to its support folder." = "Los asistentes son programas de Victron. Importe el archivo de biblioteca (all112.vfp o posterior) de una instalación de VE Configure, en «VE Configure tools/Assistants». La app lo copia una vez en su carpeta de soporte.";
 "Import Assistant Library…" = "Importar biblioteca de asistentes…";
-"The assistant program in this file could not be read back with the installed library. Settings on the other pages can still be changed; the program is kept as it is." = "No se ha podido leer el programa de asistentes de este archivo con la biblioteca instalada. Los ajustes de las demás páginas pueden modificarse; el programa se conserva tal cual.";
+"The installed library cannot read back the assistant program in this file. You can still change settings on the other pages; the program is kept unchanged." = "La biblioteca instalada no puede leer el programa de asistentes de este archivo. Puede cambiar los ajustes de las demás páginas; el programa se conserva tal cual.";
 "Choose allNNN.vfp from “VE Configure tools/Assistants”." = "Elija allNNN.vfp en «VE Configure tools/Assistants».";
 "general" = "general";
 "Grid code parameter word %@" = "Palabra de parámetros del código de red %@";
@@ -44,7 +44,7 @@
 "Restore Loaded Value" = "Restaurar el valor cargado";
 "Changes" = "Cambios";
 "No changes yet" = "Aún no hay cambios";
-"Every setting you change appears here with its previous value, so you can review it before saving." = "Cada ajuste que cambie aparece aquí con su valor anterior, para que pueda revisarlo antes de guardar.";
+"Each change appears here with its old value. Review it before you save." = "Cada cambio aparece aquí con su valor anterior. Revíselo antes de guardar.";
 "changed to" = "cambiado a";
 "Upload the saved file through VRM (Remote VE Configure). The GX resets the inverter if needed." = "Suba el archivo guardado a través de VRM (Remote VE Configure). El GX reinicia el inversor si es necesario.";
 "Save…" = "Guardar…";
@@ -146,7 +146,7 @@
 "Read %@" = "Leído %@";
 "VE.Bus inverter/charger" = "Inversor/cargador VE.Bus";
 "Changing this setting requires a reset of the device after the file has been uploaded. The GX device does this for you." = "Cambiar este ajuste requiere reiniciar el dispositivo después de subir el archivo. El dispositivo GX lo hace por usted.";
-"This setting is protected by the grid code password. VE Configure for Mac cannot verify that password, so protected settings stay read-only here. Use VE Configure to change them." = "Este ajuste está protegido por la contraseña del código de red. VE Configure para Mac no puede verificar esa contraseña, así que los ajustes protegidos son aquí de solo lectura. Utilice VE Configure para cambiarlos.";
+"The grid code password protects this setting. This app cannot verify that password, so it is read-only here. Change it in VE Configure." = "La contraseña del código de red protege este ajuste. Esta app no puede verificar esa contraseña, así que aquí es de solo lectura. Cámbielo en VE Configure.";
 "Grid Code" = "Código de red";
 "Microgrid" = "Microrred";
 "Usage" = "Uso";
@@ -159,10 +159,10 @@
 "The grid code parameters do not match the selected grid code or belong to another firmware version. Select the grid code again to load its defaults (password required)." = "Los parámetros del código de red no corresponden al código de red seleccionado o son de otra versión de firmware. Vuelva a seleccionar el código de red para cargar sus valores por defecto (se requiere contraseña).";
 "Changing these settings requires a device reset after upload. The GX does it." = "Cambiar estos ajustes requiere reiniciar el equipo tras la carga. El GX lo hace.";
 "Settings marked with the arrow require a device reset after upload. The GX does it." = "Los ajustes marcados con la flecha requieren reiniciar el equipo tras la carga. El GX lo hace.";
-"Grid code settings are protected by the grid code password. VE Configure for Mac cannot verify that password, so these settings are read-only here. Use VE Configure to change them." = "Los ajustes del código de red están protegidos por la contraseña del código de red. VE Configure para Mac no puede verificar esa contraseña, así que aquí son de solo lectura. Utilice VE Configure para cambiarlos.";
-"No grid code was selected in this file, so the initial selection does not require a password. Make sure to choose the correct country / standard: once sent to the device, a password is required to change or disable it." = "En este archivo no hay ningún código de red seleccionado, así que la primera selección no requiere contraseña. Elija bien el país / la norma: una vez enviado al dispositivo, hará falta una contraseña para cambiarlo o desactivarlo.";
+"The grid code password protects these settings. This app cannot verify that password, so they are read-only here. Change them in VE Configure." = "La contraseña del código de red protege estos ajustes. Esta app no puede verificar esa contraseña, así que aquí son de solo lectura. Cámbielos en VE Configure.";
+"No grid code is set in this file, so the first selection needs no password. Choose the correct country or standard. Once it is on the device, changing or disabling it needs the password." = "En este archivo no hay código de red definido, así que la primera selección no necesita contraseña. Elija el país o la norma correctos. Una vez en el dispositivo, cambiarlo o desactivarlo necesita la contraseña.";
 "Battery Presets" = "Preajustes de batería";
-"Sets the charger for a battery type in one step. Values are shown for this %@ V system. A preset is not stored in the device: afterwards every value stays editable." = "Configura el cargador para un tipo de batería en un solo paso. Los valores se muestran para este sistema de %@ V. Un preajuste no se guarda en el dispositivo: después, todos los valores siguen siendo editables.";
+"Sets the charger for a battery type in one step. Values shown are for this %@ V system. The preset is not stored in the device; every value stays editable afterwards." = "Configura el cargador para un tipo de batería en un paso. Los valores mostrados son para este sistema de %@ V. El preajuste no se guarda en el dispositivo; cada valor sigue siendo editable después.";
 "current" = "actual";
 "Apply" = "Aplicar";
 "Apply Battery Preset" = "Aplicar preajuste de batería";
@@ -180,7 +180,7 @@
 "changed" = "cambiado";
 "About this setting" = "Acerca de este ajuste";
 "About %@" = "Acerca de %@";
-"This value is derived from several grid words by a VE Configure handler that this app does not reproduce yet. It is shown read-only." = "Este valor se deriva de varias palabras de red mediante un procedimiento de VE Configure que esta app aún no reproduce. Se muestra en modo de solo lectura.";
+"This app does not yet reproduce the VE Configure handler that derives this value from several grid words. It is read-only." = "Esta app aún no reproduce el procedimiento de VE Configure que deriva este valor de varias palabras de red. Es de solo lectura.";
 "Stored in %@" = "Almacenado en %@";
 "Change %@" = "Cambiar %@";
 "Change stop condition" = "Cambiar la condición de parada";

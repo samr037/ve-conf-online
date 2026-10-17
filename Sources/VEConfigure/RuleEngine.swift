@@ -599,7 +599,7 @@ enum Access {
 
     static let infoText: [String: String] = [
         "reset": L("Changing this setting requires a reset of the device after the file has been uploaded. The GX device does this for you."),
-        "password": L("This setting is protected by the grid code password. VE Configure for Mac cannot verify that password, so protected settings stay read-only here. Use VE Configure to change them."),
+        "password": L("The grid code password protects this setting. This app cannot verify that password, so it is read-only here. Change it in VE Configure."),
     ]
 }
 
