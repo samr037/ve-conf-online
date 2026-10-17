@@ -12,5 +12,6 @@ let package = Package(
         // The macOS app.
         .executableTarget(name: "VEConfigure", dependencies: ["VEKit"], resources: [.copy("Resources/catalog.json"), .copy("Resources/catalog-strings.json")]),
         .testTarget(name: "VEKitTests", dependencies: ["VEKit"]),
+        .testTarget(name: "VEConfigureTests", dependencies: ["VEConfigure", "VEKit"]),
     ]
 )

@@ -51,7 +51,7 @@ It opens the configuration file you download from VRM (**Remote VE Configure**, 
     <td><img src="docs/images/virtualSwitch-dark.png" alt="Virtual switch page in dark mode"><br><sub><b>Virtual switch</b>: every condition sheet of VE Configure.</sub></td>
   </tr>
   <tr>
-    <td colspan="2"><img src="docs/images/grid-EUGridCodePage-light.png" alt="Grid code page, read-only"><br><sub><b>Grid code</b>: protected settings stay read-only (see <a href="#safety">Safety</a>).</sub></td>
+    <td colspan="2"><img src="docs/images/grid-EUGridCodePage-light.png" alt="Grid code page before password entry"><br><sub><b>Grid code</b>: protected settings require the grid code password (see <a href="#safety">Safety</a>).</sub></td>
   </tr>
 </table>
 
@@ -68,7 +68,7 @@ It opens the configuration file you download from VRM (**Remote VE Configure**, 
 
 This tool produces files that end up in a power device. It is built to refuse rather than guess:
 
-- **Grid codes.** VE Configure checks the installer password against a value inside its own program. This app does not ship that value, so grid-code protected settings are **read-only** (the first grid-code selection on a blank unit is allowed, as in VE Configure). Change them in VE Configure.
+- **Grid codes.** Enter the grid code password to unlock one document until it closes. Range, ordering and grid-parameter checks still apply. Saving records the verified authorization in the local file. GX acceptance has not been tested.
 - **Ranges and order.** Values outside the device's range, and grid trip levels in the wrong order, are rejected with VE Configure's messages. Invalid grid parameters block saving.
 - **Malformed files are refused**: duplicate sections, Assistant memory that isn't exactly 4096 bytes, firmware mismatch between sections, unknown format versions, compression bombs.
 - **Assistant programs are checked to fit** in the inverter's memory before anything is written.
@@ -127,4 +127,4 @@ vecfg wizard allNNN.vfp file.rvsc ESS      # walk an assistant headlessly
 
 Working: every tab, every applicable Assistant, the change list, export and print, four languages.
 
-Not yet: editing grid-code protected settings, the P(f)/Q(U) curve editors and the CEI/AS4777 derived tables (read-only), the ground-relay rule forced by some grid codes, and a direct MK3 connection (VRM + GX replaces it).
+Not yet: the P(f)/Q(U) curve editors and the CEI/AS4777 derived tables (read-only), the ground-relay rule forced by some grid codes, and a direct MK3 connection (VRM + GX replaces it).

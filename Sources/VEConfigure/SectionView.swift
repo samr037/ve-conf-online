@@ -266,6 +266,7 @@ struct SectionView: View {
 }
 
 struct CatalogPageView: View {
+    @StateObject private var gridPasswordSheet = Flag()
     @ObservedObject var document: ConfigDocument
     let page: CatalogPage
     let section: Section
@@ -326,6 +327,7 @@ struct CatalogPageView: View {
             }
         }
         .formStyle(.grouped)
+        .sheet(isPresented: $gridPasswordSheet.on) { GridPasswordSheet(document: document) }
         .onAppear { focus.page = visible.reduce(into: Set<DiagramPart>()) { $0.formUnion($1.lit) }; focus.hovered = nil }
     }
 
@@ -340,8 +342,11 @@ struct CatalogPageView: View {
 
     @ViewBuilder private var passwordBanner: some View {
         SwiftUI.Section {
-            if Access.gridCodeNeedsPassword(ctx) {
-                Label(L("The grid code password protects these settings. This app cannot verify that password, so they are read-only here. Change them in VE Configure."),
+            if ctx.session.gridPasswordEntered {
+                Label(L("Grid settings are unlocked until you close this document."), systemImage: "lock.open")
+                    .foregroundStyle(.secondary)
+            } else if Access.gridCodeNeedsPassword(ctx) {
+                Label(L("Enter the grid code password to edit these settings."),
                       systemImage: "lock.fill")
                     .fixedSize(horizontal: false, vertical: true)
             } else if page.name == GridPages.selectionPage {
@@ -349,6 +354,14 @@ struct CatalogPageView: View {
                       systemImage: "lock.open")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            if !ctx.session.gridPasswordEntered {
+                Button(L("Unlock grid settings…")) { gridPasswordSheet.on = true }
+                    .disabled(document.config.data.version < 2)
+                if document.config.data.version < 2 {
+                    Text(L("This file format cannot store grid authorization. Open a newer RVSC file."))
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }
@@ -427,3 +440,53 @@ struct BatteryPresetSheet: View {
     }
 }
 
+
+/// The password field exists only while the sheet is open; documents retain a verified authorization.
+struct GridPasswordSheet: View {
+    @ObservedObject var document: ConfigDocument
+    @Environment(\.dismiss) private var dismiss
+    final class Fields: ObservableObject {
+        @Published var password = ""
+        @Published var incorrect = false
+    }
+    @StateObject private var fields = Fields()
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(L("Unlock grid settings")).font(.headline)
+            Text(L("This unlocks only this document, until you close it."))
+            SecureField(L("Grid code password"), text: $fields.password)
+                .focused($focused)
+                .onSubmit(unlock)
+            if fields.incorrect {
+                Text(L("Incorrect password. Try again."))
+                    .foregroundStyle(.red)
+                    .accessibilityAddTraits(.updatesFrequently)
+            }
+            HStack {
+                Spacer()
+                Button(L("Cancel")) { fields.password = ""; dismiss() }.keyboardShortcut(.cancelAction)
+                Button(L("Unlock"), action: unlock)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(fields.password.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(24)
+        .frame(width: 400)
+        .multilineTextAlignment(.leading)
+        .onAppear { focused = true }
+        .onDisappear { fields.password = "" }
+    }
+
+    private func unlock() {
+        if document.unlockGrid(with: fields.password) {
+            fields.password = ""
+            dismiss()
+        } else {
+            fields.incorrect = true
+            fields.password = ""
+            focused = true
+        }
+    }
+}

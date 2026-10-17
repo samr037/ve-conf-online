@@ -204,10 +204,15 @@ enum ExprParser {
 
 /// Per-document state that is not stored in the file (VE Configure keeps it in form flags).
 ///
-/// There is deliberately no "grid password entered" state. VE Configure checks the grid-code password against a
-/// secret built into VEConfig.exe (FUN_005410b4 → FUN_004d5c30); this app does not embed that secret, so it cannot
-/// verify a password and never unlocks grid-code protected settings (fail safe, docs/re/04-ui-rules.md §3.3).
 struct SessionState: Equatable {
+    private(set) var gridAuthorization: GridPassword?
+    var gridPasswordEntered: Bool { gridAuthorization != nil }
+
+    mutating func unlockGrid(with password: String) -> Bool {
+        guard let authorization = GridPassword(password) else { return false }
+        gridAuthorization = authorization
+        return true
+    }
     /// "Unhide charge parameters" was pressed on an inverter-only device.
     var chargerUnhidden = false
 }
@@ -297,7 +302,7 @@ struct RuleContext {
         if name.hasPrefix("device.") { return deviceFact(String(name.dropFirst(7))) }
         if name.hasPrefix("app.") {
             switch name.dropFirst(4) {
-            case "gridPasswordEntered": return .bool(false)   // never: see SessionState
+            case "gridPasswordEntered": return .bool(session.gridPasswordEntered)
             case "assistantFilesOk", "assistantsUnlocked", "remoteFile": return .bool(true)
             case "assistantCount": return .number(Double(AssistantDirectory(config).ids.count))
             default: return nil
@@ -564,7 +569,7 @@ enum Access {
     /// Whether a protected item may change without the password. Only the grid-code family, and only when the
     /// loaded grid code could be selected without a password (VE Configure: "The initial selection of the
     /// country\grid code standard will not require a password"). Anything else needs the password, which this app
-    /// cannot verify: never.
+    /// verifies in the document session.
     static func mayChangeWithoutPassword(_ ref: VariableRef, _ ctx: RuleContext) -> Bool {
         guard ref.kind == .setting, isGridFamily(setting: ref.index) else { return false }
         return !gridCodeNeedsPassword(ctx)
@@ -573,6 +578,7 @@ enum Access {
     /// Whether the control is locked behind the grid-code password right now. Local controls (checkboxes without a
     /// device variable) inherit the protection of the settings they write.
     static func isLocked(_ control: CatalogControl, _ ctx: RuleContext) -> Bool {
+        if ctx.session.gridPasswordEntered { return false }
         if control.name == "GridCodeComboBox" { return gridCodeNeedsPassword(ctx) }
         let protected = refs(of: control).filter { isProtected($0, ctx.config) }
         return protected.contains { !mayChangeWithoutPassword($0, ctx) }
@@ -581,6 +587,7 @@ enum Access {
     /// Protected values an edit (`old` → `new`) would change to something other than the loaded value without being
     /// allowed to. Restoring a loaded value is always allowed.
     static func forbiddenEdits(old: DeviceConfiguration, new: DeviceConfiguration, _ ctx: RuleContext) -> [VariableRef] {
+        if ctx.session.gridPasswordEntered { return [] }
         var out: [VariableRef] = []
         for id in 0..<new.data.values.count where new.raw(id) != old.raw(id) && new.raw(id) != ctx.baseline.raw(id) {
             let ref = VariableRef(kind: .setting, index: id, name: SettingNames.settings[safe: id] ?? "")
@@ -599,7 +606,7 @@ enum Access {
 
     static let infoText: [String: String] = [
         "reset": L("Changing this setting requires a reset of the device after the file has been uploaded. The GX device does this for you."),
-        "password": L("The grid code password protects this setting. This app cannot verify that password, so it is read-only here. Change it in VE Configure."),
+        "password": L("Enter the grid code password on the Grid page to edit this setting."),
     ]
 }
 

@@ -260,5 +260,15 @@
  "Sets the charger for a battery type in one step. Values shown are for this %@ V system. The preset is not stored in the device; every value stays editable afterwards.": "Configura el cargador para un tipo de batería en un paso. Los valores mostrados son para este sistema de %@ V. El preajuste no se guarda en el dispositivo; cada valor sigue siendo editable después.",
  "The grid code password protects these settings. This app cannot verify that password, so they are read-only here. Change them in VE Configure.": "La contraseña del código de red protege estos ajustes. Esta app no puede verificar esa contraseña, así que aquí son de solo lectura. Cámbielos en VE Configure.",
  "The grid code password protects this setting. This app cannot verify that password, so it is read-only here. Change it in VE Configure.": "La contraseña del código de red protege este ajuste. Esta app no puede verificar esa contraseña, así que aquí es de solo lectura. Cámbielo en VE Configure.",
- "This app does not yet reproduce the VE Configure handler that derives this value from several grid words. It is read-only.": "Esta app aún no reproduce el procedimiento de VE Configure que deriva este valor de varias palabras de red. Es de solo lectura."
+ "This app does not yet reproduce the VE Configure handler that derives this value from several grid words. It is read-only.": "Esta app aún no reproduce el procedimiento de VE Configure que deriva este valor de varias palabras de red. Es de solo lectura.",
+ "Enter the grid code password on the Grid page to edit this setting.": "Introduzca la contraseña del código de red en la página Red para modificar este ajuste.",
+ "Enter the grid code password before changing these settings: %@.": "Introduzca la contraseña del código de red antes de modificar estos ajustes: %@.",
+ "This file format cannot store grid authorization. Open a newer RVSC file.": "Este formato no puede guardar la autorización de red. Abra un archivo RVSC más reciente.",
+ "Grid settings are unlocked until you close this document.": "Los ajustes de red están desbloqueados hasta que cierre este documento.",
+ "Enter the grid code password to edit these settings.": "Introduzca la contraseña del código de red para modificar estos ajustes.",
+ "Unlock grid settings…": "Desbloquear ajustes de red…",
+ "Unlock grid settings": "Desbloquear ajustes de red",
+ "This unlocks only this document, until you close it.": "El desbloqueo se aplica solo a este documento, hasta que lo cierre.",
+ "Grid code password": "Contraseña del código de red",
+ "Incorrect password. Try again.": "Contraseña incorrecta. Inténtelo de nuevo."
 }

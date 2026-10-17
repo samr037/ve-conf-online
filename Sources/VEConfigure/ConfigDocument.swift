@@ -30,6 +30,12 @@ final class ConfigDocument: ObservableObject, Identifiable {
     lazy var assistants = AssistantsModel(document: self)
     var isEdited: Bool { config != baseline }
 
+    /// A successful check applies only to this document, until it closes.
+    func unlockGrid(with password: String) -> Bool {
+        guard config.data.version >= 2 else { return false }
+        return session.unlockGrid(with: password)
+    }
+
     // MARK: Editing
 
     func setRaw(_ id: Int, _ value: UInt16, actionName: String) {
@@ -53,7 +59,7 @@ final class ConfigDocument: ObservableObject, Identifiable {
     /// undone as a single step.
     ///
     /// An edit that would change a grid-code protected value (other than back to its loaded value) is refused as a
-    /// whole: this app cannot verify the grid-code password, so protected settings can never be changed by mistake.
+    /// whole unless the user has verified the grid-code password for this document.
     func edit(_ actionName: String, control: String? = nil, _ change: (inout DeviceConfiguration) -> Void) {
         let old = config
         var c = config
@@ -77,7 +83,7 @@ final class ConfigDocument: ObservableObject, Identifiable {
         let names = refs.prefix(4).map { r in
             (r.kind == .flag ? Labels.flag(r.index) : Labels.setting(r.index, in: c))
         }.joined(separator: ", ") + (refs.count > 4 ? "…" : "")
-        return L("It is not allowed to make this change in the settings without providing the grid code password! VE Configure for Mac cannot verify that password, so this change was not made: %@.", names)
+        return L("Enter the grid code password before changing these settings: %@.", names)
     }
 
     /// Replaces the whole configuration (used by `edit`, presets and grid-code changes) with undo.
@@ -146,7 +152,7 @@ final class ConfigDocument: ObservableObject, Identifiable {
         var errorDescription: String? { reason }
     }
 
-    /// Whether ⌘S may save: something changed, the grid parameters are consistent and no protected setting changed.
+    /// Whether ⌘S may save: something changed, the grid parameters are consistent and protected changes are authorized.
     var canSave: Bool { saveBlockReason == nil }
 
     /// Why saving is not possible right now (nil when it is).
@@ -183,6 +189,12 @@ final class ConfigDocument: ObservableObject, Identifiable {
         if let problem = integrityProblem { throw SaveError(reason: problem) }
         var out = config
         Self.dropStaleTokens(&out)
+        if let authorization = session.gridAuthorization {
+            guard out.data.version >= 2 else {
+                throw SaveError(reason: L("This file format cannot store grid authorization. Open a newer RVSC file."))
+            }
+            authorization.authorizeSave(&out, now: Int64(Date().timeIntervalSince1970))
+        }
         try out.settingFile().write(to: url)
         self.url = url
         config = out

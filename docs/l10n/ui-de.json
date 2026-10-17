@@ -260,5 +260,15 @@
  "Sets the charger for a battery type in one step. Values shown are for this %@ V system. The preset is not stored in the device; every value stays editable afterwards.": "Stellt das Ladegerät in einem Schritt für einen Batterietyp ein. Die angezeigten Werte gelten für dieses %@-V-System. Die Voreinstellung wird nicht im Gerät gespeichert; jeder Wert bleibt danach bearbeitbar.",
  "The grid code password protects these settings. This app cannot verify that password, so they are read-only here. Change them in VE Configure.": "Das Netzcode-Passwort schützt diese Einstellungen. Diese App kann das Passwort nicht prüfen, daher sind sie hier schreibgeschützt. Ändern Sie sie in VE Configure.",
  "The grid code password protects this setting. This app cannot verify that password, so it is read-only here. Change it in VE Configure.": "Das Netzcode-Passwort schützt diese Einstellung. Diese App kann das Passwort nicht prüfen, daher ist sie hier schreibgeschützt. Ändern Sie sie in VE Configure.",
- "This app does not yet reproduce the VE Configure handler that derives this value from several grid words. It is read-only.": "Diese App bildet die VE Configure-Routine, die diesen Wert aus mehreren Netzwörtern ableitet, noch nicht nach. Er ist schreibgeschützt."
+ "This app does not yet reproduce the VE Configure handler that derives this value from several grid words. It is read-only.": "Diese App bildet die VE Configure-Routine, die diesen Wert aus mehreren Netzwörtern ableitet, noch nicht nach. Er ist schreibgeschützt.",
+ "Enter the grid code password on the Grid page to edit this setting.": "Geben Sie auf der Netzseite das Netzcode-Passwort ein, um diese Einstellung zu ändern.",
+ "Enter the grid code password before changing these settings: %@.": "Geben Sie das Netzcode-Passwort ein, bevor Sie diese Einstellungen ändern: %@.",
+ "This file format cannot store grid authorization. Open a newer RVSC file.": "Dieses Dateiformat kann die Netzfreigabe nicht speichern. Öffnen Sie eine neuere RVSC-Datei.",
+ "Grid settings are unlocked until you close this document.": "Die Netzeinstellungen sind bis zum Schließen dieses Dokuments entsperrt.",
+ "Enter the grid code password to edit these settings.": "Geben Sie das Netzcode-Passwort ein, um diese Einstellungen zu ändern.",
+ "Unlock grid settings…": "Netzeinstellungen entsperren…",
+ "Unlock grid settings": "Netzeinstellungen entsperren",
+ "This unlocks only this document, until you close it.": "Die Freigabe gilt nur für dieses Dokument, bis Sie es schließen.",
+ "Grid code password": "Netzcode-Passwort",
+ "Incorrect password. Try again.": "Falsches Passwort. Versuchen Sie es erneut."
 }
