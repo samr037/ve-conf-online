@@ -119,7 +119,6 @@ Die TypeScript-Engine ist eine Portierung des Swift-Codes und wird Byte für Byt
 | `Sources/VEKit` | Dateiformate, Assembler und Assistenten-Engine (Swift) |
 | `Sources/VEConfigure` | Die Mac-App |
 | `Sources/vecfg`, `Sources/vegolden` | Kommandozeilenwerkzeug, Referenzdaten-Generator |
-| `docs/re` | Notizen zum Reverse Engineering |
 | `docs/audit` | Auditbericht und Stand der Korrekturen |
 
 ## Direktverbindung (MK3-USB), in Arbeit

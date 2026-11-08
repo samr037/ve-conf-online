@@ -48,4 +48,4 @@ docker build -t shunt .
 docker run --rm -p 8080:8080 --read-only --tmpfs /tmp shunt
 ```
 
-nginx without root on port 8080, `GET /healthz`, strict Content Security Policy, self-hosted fonts. `compose.yaml` sets the same options. Images for amd64 and arm64 are built by `.github/workflows/web-image.yml` (GitHub) and `.gitlab-ci.yml` (GitLab).
+nginx without root on port 8080, `GET /healthz`, strict Content Security Policy, self-hosted fonts. `compose.yaml` sets the same options. Images for amd64 and arm64 are built by `.github/workflows/web-image.yml` on GitHub.

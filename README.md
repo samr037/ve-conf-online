@@ -119,7 +119,6 @@ The TypeScript engine is a port of the Swift code and is checked against it byte
 | `Sources/VEKit` | File formats, assembler and wizard engine (Swift) |
 | `Sources/VEConfigure` | The Mac app |
 | `Sources/vecfg`, `Sources/vegolden` | Command-line tool, reference-data generator |
-| `docs/re` | Reverse-engineering notes |
 | `docs/audit` | Audit report and fix status |
 
 ## Direct connection (MK3-USB), in progress

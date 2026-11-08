@@ -119,7 +119,6 @@ Le moteur TypeScript est un portage du code Swift et il est vérifié contre lui
 | `Sources/VEKit` | Formats de fichier, assembleur et moteur d'assistant (Swift) |
 | `Sources/VEConfigure` | L'app Mac |
 | `Sources/vecfg`, `Sources/vegolden` | Outil en ligne de commande, générateur de données de référence |
-| `docs/re` | Notes de rétro-ingénierie |
 | `docs/audit` | Rapport d'audit et état des corrections |
 
 ## Connexion directe (MK3-USB), en cours
