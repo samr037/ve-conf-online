@@ -14,10 +14,15 @@ enum Confirmations {
     }
 
     /// LOM type set to "disabled" (raw & 3 == 2) outside Denmark (18/19, where it is required).
-    static func allowLOM(control: String, newRaw: Int, config: DeviceConfiguration) -> Bool {
-        guard control == "LOMAC0SettingComboBox" || control == "LOMAC1SettingComboBox", newRaw & 3 == 2 else { return true }
+    /// Whether choosing `newRaw` on `control` needs the LOM safety confirmation.
+    static func needsLOMConfirmation(control: String, newRaw: Int, config: DeviceConfiguration) -> Bool {
+        guard control == "LOMAC0SettingComboBox" || control == "LOMAC1SettingComboBox", newRaw & 3 == 2 else { return false }
         let code = Int(config.raw(81))
-        guard code != 18 && code != 19 else { return true }
+        return code != 18 && code != 19
+    }
+
+    static func allowLOM(control: String, newRaw: Int, config: DeviceConfiguration) -> Bool {
+        guard needsLOMConfirmation(control: control, newRaw: newRaw, config: config) else { return true }
         return ask(L("Safety warning!"),
                    informative: L("Disabling the LOM detection mechanism can result in dangerous AC voltages to be present on the AC input terminals of the Multi for an extended period of time when the AC input is 'unplugged'. It might be advisable to install anti-islanding protection equipment in the AC input line of the Multi/Quattro system to make sure that the system is disconnected from the grid in case of a mains failure! Disabling the LOM detection can be useful in installations where a generator (or other weak AC source) is connected to the AC input, because some generators become unstable when LOM detection is enabled. Disabling the LOM detection for an AC input will cause the device not to be compliant to the selected grid code on that AC input!")
                        + "\n\n" + L("Do you want to continue and disable the LOM detection?"),

@@ -382,7 +382,10 @@ struct CatalogChoiceRow: View {
 
     struct Option: Hashable { var value: Int; var title: String; var enabled: Bool }
 
-    private var options: [Option] {
+    private var options: [Option] { Self.options(row) }
+
+    /// The items the picker offers for this row (also used by the golden export for the web port).
+    static func options(_ row: RowState) -> [Option] {
         let c = row.config
         let current = row.codec?.raw(c)
         let lithium = Catalog.shared.variables["EBIT_LithiumBattery"].map { c.flag($0.index) } ?? false

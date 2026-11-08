@@ -331,7 +331,10 @@ struct CatalogPageView: View {
         .onAppear { focus.page = visible.reduce(into: Set<DiagramPart>()) { $0.formUnion($1.lit) }; focus.hovered = nil }
     }
 
-    private var visibleSections: [Visible] {
+    private var visibleSections: [Visible] { Self.visibleSections(page, ctx) }
+
+    /// The sections shown on a page for this context (also used by the golden export for the web port).
+    static func visibleSections(_ page: CatalogPage, _ ctx: RuleContext) -> [Visible] {
         PageLayout.sections(page).compactMap { s in
             let rows = s.rows.filter { SectionPages.isVisible($0, ctx) }
             // A section of notes only (all its settings hidden) is dropped, like VE Configure's empty group boxes.
