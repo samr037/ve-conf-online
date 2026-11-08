@@ -4,7 +4,8 @@ import { join } from 'node:path'
 
 export const repo = join(import.meta.dirname, '..', '..')
 export const goldenDir = join(repo, 'web', 'fixtures', 'golden')
-export const libraryPath = join(repo, 'vendor', 'extracted', 'VE Configure tools', 'Assistants', 'all112.vfp')
+// The library ships with the web app (src/data/assistants), so the tests always have it.
+export const libraryPath = join(repo, 'web', 'src', 'data', 'assistants', 'all112.vfp')
 export const samplePath = (name: string) => join(repo, 'samples', `${name}.rvsc`)
 export const samples = ['s1', 's2', 's3', 's4', 's5']
 

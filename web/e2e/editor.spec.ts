@@ -10,7 +10,7 @@ import { AssistantsModel } from '../src/app/assistants'
 
 const repo = join(import.meta.dirname, '..', '..')
 const samplePath = (n: string) => join(repo, 'samples', `${n}.rvsc`)
-const libraryPath = join(repo, 'vendor', 'extracted', 'VE Configure tools', 'Assistants', 'all112.vfp')
+const libraryPath = join(repo, 'web', 'src', 'data', 'assistants', 'all112.vfp')
 const samples = ['s1', 's2', 's3', 's4', 's5'].filter((n) => existsSync(samplePath(n)))
 
 useCatalog(buildCatalog(JSON.parse(readFileSync(join(import.meta.dirname, '..', 'src', 'data', 'catalog.json'), 'utf8'))))

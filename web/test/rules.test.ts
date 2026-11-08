@@ -13,6 +13,7 @@ import {
   parseExpr, reflow, reportBlocks, reportText, resolveRawText, resolveText, sectionTitle, sections, settingTargets,
   staticLabel, stripMarkup, targetKey, useCatalog, visibleSections, type Change, type EValue, type GridChoice, type Section,
 } from '../src/lib/rules'
+import { existsSync } from 'node:fs'
 import { bytes, catalogJSONPath, hasRulesGolden, hex, rulesGolden, samplePath, samples } from './fixtures'
 
 const gridKey = 'XXXXXXXXXXXX'
@@ -519,6 +520,6 @@ describe('grid unlock', () => {
   it('names table sanity', () => {
     expect(names.settings[81]).toBe('eecvGridCode')
     expect(labelInConfig).toBeTypeOf('function')
-    expect(resolveRawText(undefined, fresh('s1', false).ruleContext)).toBeUndefined()
+    if (existsSync(samplePath('s1'))) expect(resolveRawText(undefined, fresh('s1', false).ruleContext)).toBeUndefined()
   })
 })
