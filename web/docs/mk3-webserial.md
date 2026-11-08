@@ -132,7 +132,7 @@ switches speed is undocumented.
    memory (and its device reset). Next step: trace `WinMonbus.pas` and `ExtendedBusDrv.pas` in `ghidra/out/all.c`
    from the strings above.
 4. Behaviour with a GX on the same VE.Bus: whether the MK3 and the GX (`mk2-dbus`) can both talk safely during reads.
-5. The VE.Bus address of the unit in the owner's system, and whether X/Y/Z works with his MK3 firmware.
+5. The VE.Bus address of the unit in the owner's system, and whether X/Y/Z works with their MK3 firmware.
 
 ## Writing: risks and required safeguards (not implemented)
 

@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import VEKit
 
-@Suite struct ConfigurationTests {
+@Suite(.enabled(if: Fixtures.hasSamples, "needs private samples/")) struct ConfigurationTests {
     @Test(arguments: ["s1.rvsc", "s2.rvsc", "s4.rvsc", "s5.rvsc"])
     func roundTrip(name: String) throws {
         let bytes = [UInt8](try Data(contentsOf: Fixtures.sample(name)))
@@ -14,7 +14,7 @@ import Testing
         let c = try DeviceConfiguration(contentsOf: Fixtures.sample("s5.rvsc"))
         #expect(c.firmware.number == 2_623_552)
         #expect(c.firmware.version == 552)
-        #expect(c.serial == "HQ0000XXXXX")
+        #expect(c.serial?.count == 11 && c.serial?.hasPrefix("HQ") == true)
         #expect(c.value(2) == 52.0)   // absorption
         #expect(c.value(3) == 51.0)   // float
         #expect(c.value(6) == 32.0)   // AC-in limit

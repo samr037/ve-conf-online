@@ -58,7 +58,7 @@ enum Crafted {
     }
 }
 
-@Suite struct HardeningTests {
+@Suite(.enabled(if: Fixtures.hasSamples, "needs private samples/")) struct HardeningTests {
     // MARK: Container
 
     @Test func allSamplesStillRoundTrip() throws {

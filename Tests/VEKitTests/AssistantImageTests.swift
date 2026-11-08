@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import VEKit
 
-@Suite struct AssistantImageFixTests {
+@Suite(.enabled(if: Fixtures.hasSamples, "needs private samples/")) struct AssistantImageFixTests {
     /// Audit #3/#14: an image that cannot hold code + ID directory + checksum, or of the wrong size, is refused.
     @Test func oversizeImageThrows() throws {
         let lib = try assistantLibrary()
@@ -70,7 +70,7 @@ import Testing
     }
 }
 
-@Suite struct AssistantMetaFixTests {
+@Suite(.enabled(if: Fixtures.hasSamples, "needs private samples/")) struct AssistantMetaFixTests {
     /// META's `BatteryType_VEC` carries the preset the caller matched.
     @Test func batteryTypeInMeta() throws {
         let s5 = try sampleConfig("s5")

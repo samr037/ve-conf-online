@@ -141,7 +141,7 @@ private final class Env: CalculatorHost {
     }
 }
 
-@Suite struct AssistantEndToEndTests {
+@Suite(.enabled(if: Fixtures.hasSamples, "needs private samples/")) struct AssistantEndToEndTests {
     /// The user's ESS setup: recover the answers from the device program, re-assemble from those answers
     /// alone, and get the exact 4096-byte image the inverter holds (code, ID directory, checksum).
     @Test(.enabled(if: Fixtures.hasLibrary, "needs vendor/ assistant library"), arguments: ["s2.rvsc", "s5.rvsc"])
@@ -203,7 +203,7 @@ private final class Env: CalculatorHost {
     }
 }
 
-@Suite(.enabled(if: Fixtures.hasLibrary, "needs vendor/ assistant library")) struct LibraryWideTests {
+@Suite(.enabled(if: Fixtures.hasSamples, "needs private samples/"), .enabled(if: Fixtures.hasLibrary, "needs vendor/ assistant library")) struct LibraryWideTests {
     /// Every assistant in Victron's library assembles with its default answers on the user's device,
     /// and reads back (reconstruction) to the same program.
     @Test func everyAssistantAssemblesAndReadsBack() throws {

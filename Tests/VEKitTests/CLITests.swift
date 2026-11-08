@@ -47,7 +47,7 @@ enum CLI {
     }
 }
 
-@Suite(.enabled(if: CLI.binary != nil, "vecfg not built next to the tests")) struct CLITests {
+@Suite(.enabled(if: Fixtures.hasSamples, "needs private samples/"), .enabled(if: CLI.binary != nil, "vecfg not built next to the tests")) struct CLITests {
     @Test func refusesToOverwriteTheInput() throws {
         let (d, f) = try CLI.input()
         let before = try Data(contentsOf: f)

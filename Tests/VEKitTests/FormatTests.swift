@@ -9,9 +9,11 @@ enum Fixtures {
     static let library = root.appendingPathComponent("vendor/extracted/VE Configure tools/Assistants/all112.vfp")
     /// Victron's assistant library lives in the gitignored vendor/ tree; tests that need it skip on a clean clone.
     static var hasLibrary: Bool { FileManager.default.fileExists(atPath: library.path) }
+    /// The owner's real device files are private and never published; tests that read them skip without them.
+    static var hasSamples: Bool { FileManager.default.fileExists(atPath: sample("s5.rvsc").path) }
 }
 
-@Suite struct SettingFileTests {
+@Suite(.enabled(if: Fixtures.hasSamples, "needs private samples/")) struct SettingFileTests {
     @Test(arguments: ["s1.rvsc", "s2.rvsc", "s4.rvsc", "s5.rvsc"])
     func roundTrip(name: String) throws {
         let bytes = [UInt8](try Data(contentsOf: Fixtures.sample(name)))

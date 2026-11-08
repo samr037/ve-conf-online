@@ -37,7 +37,7 @@ func walkWizard(_ w: AssistantWizard, answers: [String: Int32] = [:], limit: Int
     return (nil, trail)
 }
 
-@Suite(.serialized) struct AssistantWizardFixTests {
+@Suite(.enabled(if: Fixtures.hasSamples, "needs private samples/"), .serialized) struct AssistantWizardFixTests {
     /// Audit #4: the answers given in the wizard reach the assistant settings (one continuous assembly).
     @Test func essCapacityReachesTheConfiguration() throws {
         let lib = try assistantLibrary()
