@@ -75,15 +75,27 @@ for (const scheme of ['light', 'dark'] as const) {
   })
 }
 
-test('french', async ({ page }) => {
-  test.skip(!existsSync(sample('s5')), 'needs samples/s5.rvsc')
-  await open(page, 's5')
-  await page.getByLabel('Language').selectOption('fr')
-  await page.locator('nav .nav').nth(3).click()
-  await page.mouse.move(0, 0)
-  await page.screenshot({ path: out('charger-fr-light') })
-  await page.getByLabel('Langue').selectOption('en')
-})
+for (const lang of ['fr', 'de', 'es'] as const) {
+  test(`charger, assistants and save dialog in ${lang}`, async ({ page }) => {
+    test.skip(!existsSync(sample('s5')), 'needs samples/s5.rvsc')
+    await page.addInitScript((l) => localStorage.setItem('language', l), lang)
+    await open(page, 's5')
+    await page.locator('nav .nav').nth(3).click()
+    await page.mouse.move(0, 0)
+    await page.screenshot({ path: out(`charger-${lang}-light`) })
+    const inputs = page.locator('[data-control]:has(input.field.value:not([disabled]))').locator('input.field.value')
+    for (const i of [0, 1]) { await inputs.nth(i).focus(); await inputs.nth(i).press('ArrowUp') }
+    await page.locator('h1').first().click()
+    await page.screenshot({ path: out(`changes-${lang}-light`) })
+    await page.locator('nav .nav').nth(5).click()
+    await expect(page.locator('.assistant').first()).toBeVisible({ timeout: 15_000 })
+    await page.mouse.move(0, 0)
+    await page.screenshot({ path: out(`assistants-${lang}-light`) })
+    await page.evaluate(() => { delete (window as { showSaveFilePicker?: unknown }).showSaveFilePicker })
+    await page.locator('.changes .save').click()
+    await page.screenshot({ path: out(`save-${lang}-light`) })
+  })
+}
 
 test('tablet and phone widths', async ({ page }) => {
   test.skip(!existsSync(sample('s5')), 'needs samples/s5.rvsc')

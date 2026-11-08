@@ -16,6 +16,7 @@
   function openBytes(bytes: Uint8Array, name: string): boolean {
     try {
       editor.open(bytes, name)
+      void editor.rememberRecent(name, bytes)
       openError = undefined
       return true
     } catch (e) {
@@ -28,6 +29,12 @@
     const bytes = new Uint8Array(await f.arrayBuffer())
     if (editor.doc?.isEdited && !(await confirmDiscard())) return
     if (!openBytes(bytes, f.name) && editor.doc) editor.push({ k: 'message', title: t('openFailed'), message: openError ?? '' })
+  }
+
+  /** "Open another file…": back to the open screen (drop, choose, or a recent file). Edits not saved are lost: ask first. */
+  async function toOpenScreen() {
+    if (editor.doc?.isEdited && !(await confirmDiscard())) return
+    editor.close()
   }
 
   /** Opening another file drops the edits of this one: ask first, like the Mac app's close prompt. */
@@ -58,9 +65,9 @@
 {:else if !editor.ready}
   <div class="state" aria-live="polite"><span class="spinner" aria-hidden="true"></span><p>{t('loading')}</p></div>
 {:else if editor.doc}
-  <Editor onopen={() => picker.click()} />
+  <Editor onopen={toOpenScreen} />
 {:else}
-  <Welcome onfile={openFile} error={openError} />
+  <Welcome onfile={openFile} onrecent={(name, bytes) => openBytes(bytes, name)} error={openError} />
 {/if}
 
 <Dialogs />

@@ -2,7 +2,8 @@
 #   docker build -t ve-configure web/
 #   docker run --rm -p 8080:8080 ve-configure
 
-FROM node:24-alpine AS build
+# The build output is plain static files: build once on the builder's platform, then copy into each target image.
+FROM --platform=$BUILDPLATFORM node:24-alpine AS build
 WORKDIR /src
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund

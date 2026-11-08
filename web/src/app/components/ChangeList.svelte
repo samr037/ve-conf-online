@@ -2,6 +2,7 @@
 <script lang="ts">
   import { appText } from '../../lib/i18n/app'
   import { L, targetKey } from '../../lib/rules'
+  import { restoreAll } from '../editorActions'
   import { editor } from '../store.svelte'
 
   let { onsave }: { onsave: () => void } = $props()
@@ -14,6 +15,9 @@
 <aside class="changes" aria-labelledby="changes-title">
   <header>
     <h2 id="changes-title">{L('Changes')}</h2>
+    {#if changes.length > 1}
+      <button type="button" class="btn small quiet restore-all" onclick={restoreAll}>{appText(editor.language, 'restoreAll')}</button>
+    {/if}
     <span class="count" class:some={changes.length > 0}>{changes.length === 0 ? L('None') : changes.length}</span>
   </header>
 
@@ -61,6 +65,7 @@
   header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 16px 18px 12px; border-bottom: 1px solid var(--line-faint); }
   h2 { margin: 0; font-size: 15px; font-weight: 600; }
   .count { font: 500 13px var(--font-mono); color: var(--muted); }
+  .restore-all { margin: -4px 0 -4px auto; }
   .count.some { color: var(--changed); }
   .empty { padding: 28px 22px; text-align: center; }
   .empty p { margin: 4px 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); }

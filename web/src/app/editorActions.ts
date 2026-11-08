@@ -26,8 +26,23 @@ export function download(bytes: Uint8Array | string, name: string, type: string)
   setTimeout(() => URL.revokeObjectURL(url), 2000)
 }
 
-/** Saves a new file (download) or explains why it can't be saved yet. Returns the saved name. */
-export function save(): string | undefined {
+/** `showSaveFilePicker` where the browser has it (Chromium): the user picks the folder and the name. */
+interface SaveHandle { name: string; createWritable(): Promise<{ write(b: BlobPart): Promise<void>; close(): Promise<void> }> }
+type SavePicker = (o: { suggestedName: string; types: { description: string; accept: Record<string, string[]> }[] }) => Promise<SaveHandle>
+
+/** The name the user typed, with the original extension when they left it out. */
+export function withExtension(name: string, original: string | undefined): string {
+  const n = name.trim()
+  if (/\.(rvsc|vsc)$/i.test(n)) return n
+  const ext = original?.match(/\.(rvsc|vsc)$/i)?.[0] ?? '.rvsc'
+  return n + ext
+}
+
+/**
+ * Saves a new file: in a folder the user picks (Chromium), else as a download under the name typed in the Save
+ * dialog. Explains why it can't be saved yet when blocked. Returns the saved name.
+ */
+export async function save(): Promise<string | undefined> {
   const doc = editor.doc
   if (!doc) return undefined
   const reason = doc.saveBlockReason
@@ -35,16 +50,71 @@ export function save(): string | undefined {
     editor.push({ k: 'saveBlocked', reason })
     return undefined
   }
-  const name = suggestedName(doc.fileName)
+  const suggested = suggestedName(doc.fileName)
+  const picker = (window as unknown as { showSaveFilePicker?: SavePicker }).showSaveFilePicker
+  if (typeof picker === 'function') {
+    let handle: SaveHandle
+    try {
+      handle = await picker({ suggestedName: suggested, types: [{ description: 'VE.Bus configuration', accept: { 'application/octet-stream': ['.rvsc', '.vsc'] } }] })
+    } catch {
+      return undefined // cancelled
+    }
+    return commit(handle.name, async (bytes) => {
+      const w = await handle.createWritable()
+      await w.write(bytes as BlobPart)
+      await w.close()
+    })
+  }
+  const typed = await editor.askSaveName(suggested)
+  if (typed === undefined) return undefined
+  const name = withExtension(typed, doc.fileName)
+  if (doc.fileName && name.toLowerCase() === doc.fileName.toLowerCase()) {
+    const ok = await editor.confirm({
+      title: L('Replace the original download “%@”?', doc.fileName),
+      message: L("This is the file you opened. Keep it as it is so you can go back to the inverter's current settings; save the edited configuration under a new name instead."),
+      continueTitle: L('Replace Original'),
+    })
+    if (!ok) return undefined
+  }
+  return commit(name, async (bytes) => download(bytes, name, 'application/octet-stream'))
+}
+
+/** Saves the document, writes the bytes, and puts everything back if writing fails. */
+async function commit(name: string, write: (bytes: Uint8Array) => Promise<void>): Promise<string | undefined> {
+  const doc = editor.doc!
+  const before = { config: doc.config, baseline: doc.baseline, fileName: doc.fileName }
+  let bytes: Uint8Array
   try {
-    const bytes = doc.save()
-    download(bytes, name, 'application/octet-stream')
-    editor.toast(appText(editor.language, 'downloaded', { name }))
-    return name
+    bytes = doc.save(undefined, name)
   } catch (e) {
     editor.push({ k: 'saveBlocked', reason: e instanceof SaveError ? e.reason : e instanceof Error ? e.message : String(e) })
     return undefined
   }
+  try {
+    await write(bytes)
+  } catch {
+    doc.config = before.config
+    doc.baseline = before.baseline
+    doc.fileName = before.fileName
+    editor.bump()
+    editor.push({ k: 'message', title: appText(editor.language, 'saveTitle'), message: appText(editor.language, 'saveFailed') })
+    return undefined
+  }
+  editor.toast(appText(editor.language, 'downloaded', { name }))
+  void editor.rememberRecent(name, bytes)
+  return name
+}
+
+/** "Restore all": every setting back to the loaded file, as one step that Undo takes back. */
+export async function restoreAll(): Promise<void> {
+  const doc = editor.doc
+  if (!doc || doc.changes.length === 0) return
+  const ok = await editor.confirm({
+    title: appText(editor.language, 'restoreAllTitle', { n: doc.changes.length }),
+    message: appText(editor.language, 'restoreAllMessage'),
+    continueTitle: appText(editor.language, 'restoreAll'),
+  })
+  if (ok) doc.replace(doc.baseline.clone(), appText(editor.language, 'restoreAllAction'))
 }
 
 export function reportOf(): string {

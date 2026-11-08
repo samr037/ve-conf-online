@@ -125,7 +125,10 @@ export class AssistantsModel {
   private lastImage: Bytes = new Uint8Array()
   private stepCounts = new Map<string, number>()
   private wizardOpen = false
+  /** The program changed under an open wizard: its answers no longer apply. */
   private reloadDeferred = false
+  /** The library or the language changed under an open wizard: read the program again once it closes. */
+  private refreshPending = false
 
   constructor(private readonly document: ConfigDocument, private library: AssistantLibrary | undefined, public languages: string[]) {
     this.reload()
@@ -136,8 +139,16 @@ export class AssistantsModel {
   get capacity(): number { return this.memorySize - 4 - 2 * (this.installed.length + 2) }
   get hasLibrary(): boolean { return this.library !== undefined }
 
+  /** A new library (imported, or the bundled one arriving late). It describes the same program, so an open wizard
+   * keeps its answers; the list is read again once it closes. */
   setLibrary(lib: AssistantLibrary | undefined): void {
     this.library = lib
+    this.refresh()
+  }
+
+  /** Reads the program again for a new library or language, after the open wizard if there is one. */
+  refresh(): void {
+    if (this.wizardOpen) { this.refreshPending = true; return }
     this.reload()
   }
 
@@ -250,8 +261,10 @@ export class AssistantsModel {
     const session = new WizardSession(c, name, title, this.languages, adding ? undefined : this.stepCounts.get(name), (result) => {
       this.wizardOpen = false
       const deferred = this.reloadDeferred
+      const refresh = this.refreshPending
       this.reloadDeferred = false
-      if (!result) { restore(); if (deferred) this.reload(); this.notify(); return }
+      this.refreshPending = false
+      if (!result) { restore(); if (deferred || refresh) this.reload(); this.notify(); return }
       if (deferred || this.composer !== c) {
         restore()
         this.message = L('The configuration changed while the assistant was open. Its answers were not applied.')
@@ -259,6 +272,7 @@ export class AssistantsModel {
         return
       }
       this.program(c, adding ? L('Add %@', title) : L('Configure %@', title), result.vecChanges, restore)
+      if (refresh) this.reload()
     })
     return session.finished ? undefined : session
   }

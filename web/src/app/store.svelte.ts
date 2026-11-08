@@ -11,6 +11,7 @@ import {
 import { AssistantsModel, WizardSession } from './assistants'
 import { libraryLanguages, loadBundledLibrary, loadStoredLibrary } from './library'
 import { clearSession, flushSession, loadSession, scheduleSave } from './persist'
+import { forgetFile, recentFiles, rememberFile, type RecentFile } from './recent'
 
 const uiStrings: Record<Exclude<Language, 'en'>, () => Promise<string>> = {
   fr: () => import('../data/l10n/fr.strings?raw').then((m) => m.default),
@@ -28,6 +29,7 @@ export type DialogRequest =
   | { k: 'wizard'; session: WizardSession }
   | { k: 'message'; title: string; message: string }
   | { k: 'saveBlocked'; reason: string }
+  | { k: 'saveName'; suggested: string; resolve: (name: string | undefined) => void }
 
 /** Locale for numbers and dates: the interface language with the browser's region when it has one for it. */
 function localeFor(language: Language): string {
@@ -60,6 +62,8 @@ class EditorStore {
   library = $state.raw<{ name: string; library: AssistantLibrary } | undefined>(undefined)
   /** True while the bundled library downloads; the manual import shows only if that fails. */
   libraryLoading = $state(true)
+  /** Files opened or saved lately in this browser, newest first. */
+  recents = $state.raw<RecentFile[]>([])
   section = $state<Section>('general')
   subpage = $state<Partial<Record<Section, string>>>({})
   /** Diagram parts lit by the group under the pointer. */
@@ -85,6 +89,7 @@ class EditorStore {
       await this.setLanguage(this.language, false)
       this.ready = true
       void this.loadLibrary()
+      void recentFiles().then((r) => (this.recents = r))
     } catch (e) {
       this.loadError = e instanceof Error ? e.message : String(e)
     }
@@ -98,7 +103,7 @@ class EditorStore {
     else document.documentElement.lang = l
     if (this.assistants) {
       this.assistants.languages = libraryLanguages(l)
-      this.assistants.reload()
+      this.assistants.refresh()
     }
     this.bump()
   }
@@ -193,6 +198,18 @@ class EditorStore {
 
   push(d: DialogRequest): void { this.dialogs = [...this.dialogs, d] }
   pop(d: DialogRequest): void { this.dialogs = this.dialogs.filter((x) => x !== d) }
+
+  askSaveName(suggested: string): Promise<string | undefined> {
+    return new Promise((resolve) => this.push({ k: 'saveName', suggested, resolve }))
+  }
+
+  async rememberRecent(name: string, bytes: Uint8Array): Promise<void> {
+    this.recents = await rememberFile(name, bytes)
+  }
+
+  async forgetRecent(name: string): Promise<void> {
+    this.recents = await forgetFile(name)
+  }
 
   confirm(c: Confirmation): Promise<boolean> {
     return new Promise((resolve) => this.push({ k: 'confirm', confirmation: c, resolve }))

@@ -11,11 +11,28 @@
 
   let password = $state('')
   let incorrect = $state(false)
+  let fileName = $state('')
+  let nameMissing = $state(false)
+  const t = (k: Parameters<typeof appText>[1]) => appText(editor.language, k)
+
+  function submitName(d: Extract<DialogRequest, { k: 'saveName' }>) {
+    const name = fileName.trim()
+    if (!name) { nameMissing = true; return }
+    finish(d, name)
+  }
 
   function done(d: DialogRequest) {
     editor.pop(d)
     password = ''
     incorrect = false
+    nameMissing = false
+  }
+
+  /** Closes a dialog and answers it. `d` is passed in: once the dialog is closed, the `{@const}` in the markup
+   * already names the next dialog. */
+  function finish<T>(d: { resolve: (v: T) => void } & DialogRequest, value: T) {
+    done(d)
+    d.resolve(value)
   }
 
   function unlock(d: DialogRequest) {
@@ -31,22 +48,22 @@
   {#key current}
     {#if current.k === 'confirm'}
       {@const d = current}
-      <Dialog title={d.confirmation.title} tone="warning" width={520} oncancel={() => { done(d); d.resolve(false) }} initialFocus="[data-cancel]">
+      <Dialog title={d.confirmation.title} tone="warning" width={520} oncancel={() => finish(d, false)} initialFocus="[data-cancel]">
         <p class="message">{d.confirmation.message}</p>
         {#snippet footer()}
-          <button type="button" class="btn" data-cancel onclick={() => { done(d); d.resolve(false) }}>{L('Cancel')}</button>
-          <button type="button" class="btn primary" onclick={() => { done(d); d.resolve(true) }}>{d.confirmation.continueTitle}</button>
+          <button type="button" class="btn" data-cancel onclick={() => finish(d, false)}>{L('Cancel')}</button>
+          <button type="button" class="btn primary" onclick={() => finish(d, true)}>{d.confirmation.continueTitle}</button>
         {/snippet}
       </Dialog>
     {:else if current.k === 'notice'}
       {@const d = current}
-      <Dialog title={d.notice.title} width={480} oncancel={() => { done(d); d.resolve(false) }} initialFocus="[data-ok]">
+      <Dialog title={d.notice.title} width={480} oncancel={() => finish(d, false)} initialFocus="[data-ok]">
         <p class="message">{d.notice.message}</p>
         {#snippet footer()}
           {#if d.notice.action === 'openBatteryPresets' && d.notice.actionTitle}
-            <button type="button" class="btn" onclick={() => { done(d); d.resolve(true) }}>{d.notice.actionTitle}</button>
+            <button type="button" class="btn" onclick={() => finish(d, true)}>{d.notice.actionTitle}</button>
           {/if}
-          <button type="button" class="btn primary" data-ok onclick={() => { done(d); d.resolve(false) }}>{L('OK')}</button>
+          <button type="button" class="btn primary" data-ok onclick={() => finish(d, false)}>{L('OK')}</button>
         {/snippet}
       </Dialog>
     {:else if current.k === 'message'}
@@ -61,24 +78,42 @@
         <p class="message">{d.reason}</p>
         {#snippet footer()}<button type="button" class="btn primary" data-ok onclick={() => done(d)}>{L('OK')}</button>{/snippet}
       </Dialog>
+    {:else if current.k === 'saveName'}
+      {@const d = current}
+      <Dialog title={t('saveTitle')} width={440} oncancel={() => finish(d, undefined)} initialFocus="input">
+        <form id="save-name" onsubmit={(e) => { e.preventDefault(); submitName(d) }}>
+          <label class="pw">
+            <span>{t('fileName')}</span>
+            <input class="field name" type="text" autocomplete="off" spellcheck="false" value={d.suggested}
+              oninput={(e) => { fileName = e.currentTarget.value; nameMissing = false }}
+              onfocus={(e) => { fileName = e.currentTarget.value; const v = e.currentTarget.value; const dot = v.lastIndexOf('.'); e.currentTarget.setSelectionRange(0, dot > 0 ? dot : v.length) }}
+              aria-invalid={nameMissing} aria-describedby={nameMissing ? 'name-error' : undefined} />
+          </label>
+          {#if nameMissing}<p id="name-error" class="error" role="alert">{t('nameNeeded')}</p>{/if}
+        </form>
+        {#snippet footer()}
+          <button type="button" class="btn" onclick={() => finish(d, undefined)}>{L('Cancel')}</button>
+          <button type="submit" form="save-name" class="btn primary">{t('save')}</button>
+        {/snippet}
+      </Dialog>
     {:else if current.k === 'gridChoice'}
       {@const d = current}
       {@const c = d.choice}
       {@const buttons = Confirmations.gridButtons(c)}
-      <Dialog title={gridTitle(d)} tone="warning" width={520} oncancel={() => { done(d); d.resolve(undefined) }}>
+      <Dialog title={gridTitle(d)} tone="warning" width={520} oncancel={() => finish(d, undefined)}>
         {#if c.t !== 'accept'}<p class="message">{c.message}</p>{/if}
         {#snippet footer()}
           {#if c.t === 'reject'}
-            <button type="button" class="btn primary" onclick={() => { done(d); d.resolve(undefined) }}>{buttons[0]}</button>
+            <button type="button" class="btn primary" onclick={() => finish(d, undefined)}>{buttons[0]}</button>
           {:else if c.t === 'propose'}
-            <button type="button" class="btn" onclick={() => { done(d); d.resolve(undefined) }}>{L('Cancel')}</button>
+            <button type="button" class="btn" onclick={() => finish(d, undefined)}>{L('Cancel')}</button>
             {#if c.keep !== undefined}
-              <button type="button" class="btn" onclick={() => { done(d); d.resolve(c.keep) }}>{L('Keep Option %d', c.keep)}</button>
+              <button type="button" class="btn" onclick={() => finish(d, c.keep)}>{L('Keep Option %d', c.keep)}</button>
             {/if}
-            <button type="button" class="btn primary" onclick={() => { done(d); d.resolve(c.alternative) }}>{c.button}</button>
+            <button type="button" class="btn primary" onclick={() => finish(d, c.alternative)}>{c.button}</button>
           {:else if c.t === 'confirm'}
-            <button type="button" class="btn" onclick={() => { done(d); d.resolve(undefined) }}>{L('Cancel')}</button>
-            <button type="button" class="btn primary" onclick={async () => { done(d); d.resolve(await editor.gridChoice(c.then)) }}>{c.button}</button>
+            <button type="button" class="btn" onclick={() => finish(d, undefined)}>{L('Cancel')}</button>
+            <button type="button" class="btn primary" onclick={async () => { const req = d, then = c.then; done(req); req.resolve(await editor.gridChoice(then)) }}>{c.button}</button>
           {/if}
         {/snippet}
       </Dialog>
@@ -112,5 +147,6 @@
   .message { margin: 0; white-space: pre-line; }
   .pw { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; font-size: 13px; color: var(--ink); }
   .pw .field { width: 100%; font-family: var(--font-mono); letter-spacing: 0.08em; }
+  .pw .field.name { letter-spacing: 0; }
   .error { margin: 8px 0 0; font-size: 13px; color: var(--danger); }
 </style>
