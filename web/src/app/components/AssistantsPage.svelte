@@ -116,7 +116,6 @@
         </article>
       {/each}
     </div>
-    <p class="footnote">{L('Assistants run in this order inside the inverter. Changing one re-programs all of them; review the change list before saving.')}</p>
   </section>
 
   <div class="add" data-menu>
@@ -168,7 +167,6 @@
   dl { display: grid; grid-template-columns: minmax(140px, max-content) minmax(0, 1fr); gap: 6px 18px; margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--line-faint); font-size: 13px; }
   dt { color: var(--muted); }
   dd { margin: 0; color: var(--ink); white-space: pre-line; font-variant-numeric: tabular-nums; }
-  .footnote { margin: 0; padding-left: 2px; font-size: 12px; color: var(--muted); max-width: 70ch; }
   .add { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
   .lib { font-size: 12px; color: var(--muted); }
   .link { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }

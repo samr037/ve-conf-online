@@ -24,7 +24,6 @@
   {#if changes.length === 0}
     <div class="empty">
       <p class="strong">{L('No changes yet')}</p>
-      <p>{L('Each change appears here with its old value. Review it before you save.')}</p>
     </div>
   {:else}
     <ul>

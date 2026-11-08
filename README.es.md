@@ -1,0 +1,135 @@
+<p align="center">
+  <a href="README.md">English</a> · <a href="README.fr.md">Français</a> · <a href="README.de.md">Deutsch</a> · <b>Español</b>
+</p>
+
+<h1 align="center">Shunt</h1>
+
+<p align="center">
+  Configura los inversores/cargadores VE.Bus de Victron Energy desde cualquier ordenador.<br>
+  MultiPlus, MultiPlus-II y Quattro, en el navegador o como app para Mac.
+</p>
+
+<p align="center">
+  <a href="https://samr037.github.io/ve-conf-online/"><b>Abrir Shunt</b></a>
+</p>
+
+<p align="center">
+  <img src="docs/images/web/charger-light.png" width="900" alt="La pestaña Cargador con un valor cambiado en la lista de cambios">
+</p>
+
+Shunt abre el archivo de configuración que descargas de VRM (Remote VE Configure, `.rvsc`). Cambias los ajustes que ofrece VE Configure, ejecutas los asistentes, revisas cada cambio y guardas un archivo nuevo que subes por VRM.
+
+## Qué hace
+
+- **Las siete pestañas:** General, Red, Inversor, Cargador, Interruptor virtual, Asistentes, Avanzado, con los rangos, las reglas de dependencia, los ajustes predefinidos de batería y las confirmaciones de VE Configure.
+- **Asistentes, byte a byte:** ESS, arranque/parada del generador, relé programable y los demás se ensamblan a partir de las fuentes de Victron. El programa que se escribe en tu archivo es idéntico al de VE Configure, suma de comprobación incluida. Los asistentes que ya están en un archivo se leen con sus respuestas.
+- **Códigos de red:** los ajustes protegidos se desbloquean con la contraseña del código de red. Las comprobaciones de rango y de orden de los umbrales de disparo se siguen aplicando.
+- **Lista de cambios:** cada diferencia con el archivo cargado, antes → después, con deshacer, rehacer, restaurar un elemento o restaurarlo todo.
+- **Cuatro idiomas:** inglés, francés, alemán y español, con el vocabulario de Victron.
+- **Modo claro y oscuro.**
+- **Sigue donde lo dejaste:** el archivo abierto, sus cambios y el historial de deshacer siguen ahí después de recargar la página.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/web/assistants-wizard-light.png" alt="El asistente ESS con el texto de paso de Victron"><br><sub>El asistente ESS, con los textos de paso de Victron.</sub></td>
+    <td width="50%"><img src="docs/images/web/general-dark.png" alt="La pestaña General en modo oscuro"><br><sub>Pestaña General, modo oscuro.</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/web/charger-dark.png" alt="La pestaña Cargador en modo oscuro"><br><sub>Pestaña Cargador, modo oscuro.</sub></td>
+    <td><img src="docs/images/web/landing-light.png" alt="La página de inicio"><br><sub>Suelta un archivo sobre el inversor para abrirlo.</sub></td>
+  </tr>
+</table>
+
+## Con VRM
+
+1. En VRM, abre la instalación, luego **Lista de dispositivos › Remote VE Configure**, y descarga el `.rvsc`.
+2. Ábrelo en Shunt. Cambia ajustes o ejecuta asistentes y revisa la lista de cambios.
+3. Guarda con un nombre nuevo y súbelo en la misma página de VRM. El GX lo envía al inversor y lo reinicia si hace falta.
+
+## Alojarlo tú mismo
+
+El sitio es estático. Un solo contenedor lo sirve con nginx, sin root, en el puerto 8080.
+
+```sh
+docker run -d -p 8080:8080 --read-only --tmpfs /tmp ghcr.io/samr037/ve-conf-online
+```
+
+O con Compose, desde `web/`: `docker compose up -d`.
+
+- `GET /healthz` responde `ok`; la imagen declara una comprobación de salud de Docker sobre él.
+- El contenedor funciona en solo lectura con un tmpfs en `/tmp`.
+- Las imágenes se construyen para amd64 y arm64.
+- Los enlaces son relativos, así que el sitio también funciona en una subruta detrás de un proxy inverso.
+
+## App para Mac
+
+El mismo editor existe como app nativa de macOS (SwiftUI y AppKit, macOS 14 o posterior). Necesita las Command Line Tools (Swift 6), no Xcode.
+
+```sh
+scripts/test.sh          # pruebas unitarias y de extremo a extremo (VEKit)
+scripts/build-app.sh     # compila e instala ~/Applications/VE Configure.app
+```
+
+`vecfg` es su herramienta de línea de comandos:
+
+```sh
+swift build --scratch-path /tmp/vec-build --product vecfg
+vecfg show file.rvsc                       # ajustes, flags, memoria de asistentes
+vecfg diff a.rvsc b.rvsc                   # qué ha cambiado
+vecfg set file.rvsc UBatAbsorption=56.4 AssistEnabled=on -o out.rvsc
+vecfg reconstruct allNNN.vfp file.rvsc     # leer los asistentes y sus respuestas
+vecfg wizard allNNN.vfp file.rvsc ESS      # recorrer un asistente sin interfaz
+```
+
+<p>
+  <img src="docs/images/general-light.png" width="440" alt="La app para Mac, pestaña General">
+  <img src="docs/images/assistants-dark.png" width="440" alt="La app para Mac, pestaña Asistentes en modo oscuro">
+</p>
+
+## Desarrollo
+
+App web (`web/`, Vite, Svelte 5, TypeScript):
+
+```sh
+cd web
+npm ci
+npm run dev            # http://localhost:5173
+npx vitest run         # pruebas unitarias
+npx playwright test    # pruebas en el navegador
+npm run build          # sitio estático en dist/
+```
+
+Swift (`Sources/`, `Tests/`):
+
+```sh
+swift build
+swift test
+```
+
+El motor TypeScript es un port del código Swift y se comprueba contra él byte a byte. Los datos de referencia salen de `swift run vegolden web/fixtures/golden`, que lee archivos reales de un dispositivo que no están en este repositorio. Las pruebas que los necesitan se omiten cuando faltan.
+
+## Estructura del proyecto
+
+| Ruta | Contenido |
+|---|---|
+| `web/src/lib/engine` | Formatos de archivo, ensamblador VLL, compositor y asistente (TypeScript) |
+| `web/src/lib/rules` | Catálogo de ajustes, motor de reglas, conversión de valores, modelo de documento (TypeScript) |
+| `web/src/app`, `web/src/landing` | El editor y la página de inicio (Svelte) |
+| `web/src/lib/device` | Conexión directa mediante una interfaz MK3-USB, borrador de solo lectura |
+| `Sources/VEKit` | Formatos de archivo, ensamblador y motor de asistentes (Swift) |
+| `Sources/VEConfigure` | La app para Mac |
+| `Sources/vecfg`, `Sources/vegolden` | Herramienta de línea de comandos, generador de datos de referencia |
+| `docs/re` | Notas de ingeniería inversa |
+| `docs/audit` | Informe de auditoría y estado de las correcciones |
+
+## Conexión directa (MK3-USB), en curso
+
+Se está estudiando la lectura de un dispositivo mediante una interfaz MK3-USB con Web Serial (navegadores Chromium). Notas y borrador de solo lectura: [web/docs/mk3-webserial.md](web/docs/mk3-webserial.md).
+
+## Licencia
+
+Licencia: por decidir.
+
+---
+
+Shunt es un proyecto independiente, no creado, respaldado ni apoyado por Victron Energy, y sin relación con el SmartShunt de Victron. Victron Energy, VE.Bus, VE Configure, VRM, MultiPlus, Quattro y SmartShunt son marcas de Victron Energy B.V.
