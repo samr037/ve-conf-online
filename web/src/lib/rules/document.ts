@@ -37,6 +37,16 @@ export interface DocumentEnvironment {
 
 interface UndoEntry { name: string; config: DeviceConfiguration }
 
+/** Everything needed to bring a document back after a page reload. The grid password is never kept. */
+export interface DocumentSnapshot {
+  fileName?: string
+  baseline: Bytes
+  config: Bytes
+  undo: { name: string; config: Bytes }[]
+  redo: { name: string; config: Bytes }[]
+  chargerUnhidden: boolean
+}
+
 export class ConfigDocument {
   config: DeviceConfiguration
   /** The configuration as loaded (or as last saved): the reference for the change list. */
@@ -61,6 +71,29 @@ export class ConfigDocument {
 
   static open(bytes: Bytes, fileName?: string, env?: DocumentEnvironment): ConfigDocument {
     return new ConfigDocument(DeviceConfiguration.parse(bytes), fileName, env)
+  }
+
+  snapshot(): DocumentSnapshot {
+    const entry = (e: UndoEntry) => ({ name: e.name, config: e.config.encoded() })
+    return {
+      fileName: this.fileName,
+      baseline: this.baseline.encoded(),
+      config: this.config.encoded(),
+      undo: this.undoStack.map(entry),
+      redo: this.redoStack.map(entry),
+      chargerUnhidden: this.session.chargerUnhidden,
+    }
+  }
+
+  /** Rebuilds a document from `snapshot()`. Throws if any of its configurations no longer parses. */
+  static restore(s: DocumentSnapshot, env?: DocumentEnvironment): ConfigDocument {
+    const doc = new ConfigDocument(DeviceConfiguration.parse(s.baseline), s.fileName, env)
+    doc.config = DeviceConfiguration.parse(s.config)
+    const entry = (e: { name: string; config: Bytes }): UndoEntry => ({ name: e.name, config: DeviceConfiguration.parse(e.config) })
+    doc.undoStack = s.undo.map(entry)
+    doc.redoStack = s.redo.map(entry)
+    doc.session.chargerUnhidden = s.chargerUnhidden
+    return doc
   }
 
   get ruleContext(): RuleContext { return new RuleContext(this.config, this.baseline, this.session) }
