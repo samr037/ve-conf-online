@@ -128,7 +128,7 @@ La lecture d'un appareil par une interface MK3-USB avec Web Serial (navigateurs 
 
 ## Licence
 
-Licence : à définir.
+MIT, voir [LICENSE](LICENSE). Les textes du catalogue et la bibliothèque d'Assistants de Victron n'en font pas partie et restent la propriété de Victron.
 
 ---
 

@@ -128,7 +128,7 @@ Reading a device through an MK3-USB interface with Web Serial (Chromium browsers
 
 ## Licence
 
-Licence: to be decided.
+MIT, see [LICENSE](LICENSE). Victron's catalogue texts and Assistant library are not covered and remain Victron's property.
 
 ---
 

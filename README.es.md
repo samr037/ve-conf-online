@@ -128,7 +128,7 @@ Se está estudiando la lectura de un dispositivo mediante una interfaz MK3-USB c
 
 ## Licencia
 
-Licencia: por decidir.
+MIT, véase [LICENSE](LICENSE). Los textos del catálogo y la biblioteca de Asistentes de Victron no están incluidos y siguen siendo propiedad de Victron.
 
 ---
 

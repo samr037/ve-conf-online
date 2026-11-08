@@ -128,7 +128,7 @@ Das Auslesen eines Geräts über eine MK3-USB-Schnittstelle mit Web Serial (Chro
 
 ## Lizenz
 
-Lizenz: noch offen.
+MIT, siehe [LICENSE](LICENSE). Die Katalogtexte und die Assistenten-Bibliothek von Victron sind nicht abgedeckt und bleiben Eigentum von Victron.
 
 ---
 
