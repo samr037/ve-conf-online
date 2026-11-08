@@ -4,7 +4,7 @@
 // Every access may fail (private mode, blocked or full storage): the editor then simply starts empty.
 import type { DocumentSnapshot } from '../lib/rules'
 
-const key = 'session'
+const key = 'shunt.session'
 /** Undo steps kept across a reload; older ones are dropped to stay well inside the storage quota. */
 const maxSteps = 100
 

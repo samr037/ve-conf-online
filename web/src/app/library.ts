@@ -4,7 +4,7 @@
 import { AssistantLibrary } from '../lib/engine/assistantPackage'
 import bundledURL from '../data/assistants/all112.vfp?url'
 
-const dbName = 've-configure'
+const dbName = 'shunt.library'
 const store = 'library'
 const key = 'current'
 

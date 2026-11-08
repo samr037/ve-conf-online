@@ -1,7 +1,7 @@
 // The last files opened or saved in this browser (names, dates and bytes, in IndexedDB), so one can be reopened
 // from the open screen. Every storage access may fail (private mode, blocked storage): the list is then empty.
 
-const dbName = 've-configure-recent'
+const dbName = 'shunt.recent'
 const store = 'files'
 const key = 'list'
 const limit = 5

@@ -5,7 +5,7 @@
 // `undefined` when nothing is waiting. Storage is sessionStorage (per tab, survives the navigation),
 // base64-encoded; every access is guarded because storage can be disabled or full.
 
-const key = 'handoff.file'
+const key = 'shunt.handoff'
 
 export interface StashedFile {
   name: string

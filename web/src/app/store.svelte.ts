@@ -39,7 +39,7 @@ function localeFor(language: Language): string {
 
 function readTheme(): 'auto' | 'light' | 'dark' {
   try {
-    const t = localStorage.getItem('theme')
+    const t = localStorage.getItem('shunt.theme')
     return t === 'light' || t === 'dark' ? t : 'auto'
   } catch {
     return 'auto'
@@ -147,7 +147,7 @@ class EditorStore {
   setTheme(t: 'auto' | 'light' | 'dark'): void {
     this.theme = t
     applyTheme(t)
-    try { localStorage.setItem('theme', t) } catch { /* this page only */ }
+    try { localStorage.setItem('shunt.theme', t) } catch { /* this page only */ }
   }
 
   open(bytes: Uint8Array, fileName: string): void {

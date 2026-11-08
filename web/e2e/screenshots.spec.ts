@@ -78,7 +78,7 @@ for (const scheme of ['light', 'dark'] as const) {
 for (const lang of ['fr', 'de', 'es'] as const) {
   test(`charger, assistants and save dialog in ${lang}`, async ({ page }) => {
     test.skip(!existsSync(sample('s5')), 'needs samples/s5.rvsc')
-    await page.addInitScript((l) => localStorage.setItem('language', l), lang)
+    await page.addInitScript((l) => localStorage.setItem('shunt.language', l), lang)
     await open(page, 's5')
     await page.locator('nav .nav').nth(3).click()
     await page.mouse.move(0, 0)

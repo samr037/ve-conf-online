@@ -5,7 +5,7 @@ export type Language = (typeof languages)[number]
 
 export const languageNames: Record<Language, string> = { en: 'English', fr: 'Français', de: 'Deutsch', es: 'Español' }
 
-const storageKey = 'language'
+const storageKey = 'shunt.language'
 
 function stored(): Language | undefined {
   try {
