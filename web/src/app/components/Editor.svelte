@@ -300,8 +300,9 @@
   }
   .device-banner svg { flex: none; color: var(--accent); }
   .device-banner p { margin: 0; font-size: 13.5px; }
-  .content { flex: 1; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px; padding: 28px; }
-  .page-col { flex: 999 1 520px; min-width: 0; }
+  /* Capped so the Changes panel stays next to the settings (820 px page + gap + 340 px panel) on wide windows. */
+  .content { flex: 1; width: 100%; max-width: 1240px; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px; padding: 28px; }
+  .page-col { flex: 999 1 520px; min-width: 0; max-width: 820px; }
   .changes-col { flex: 1 1 280px; max-width: 340px; position: sticky; top: calc(var(--header-h) + 28px); height: calc(100vh - var(--header-h) - 56px); min-height: 320px; }
 
   .print-report { display: none; }

@@ -296,3 +296,20 @@ for (const scheme of ['light', 'dark'] as const) {
     })
   }
 }
+
+// Wide desktop windows: the Changes panel stays next to the settings instead of drifting to the far edge.
+for (const width of [1920, 2560]) {
+  test.describe(`desktop-${width}`, () => {
+    test.use({ viewport: { width, height: 1200 }, reducedMotion: 'reduce' })
+    test.skip(!hasDemo, 'needs VE_DEMO_FILE')
+
+    test('editor: no empty column between the settings and the Changes panel', async ({ page }) => {
+      await openDemo(page)
+      const page_ = await page.locator('.page').boundingBox()
+      const changes = await page.locator('.changes-col').boundingBox()
+      expect(page_ && changes, 'settings page and Changes panel are shown').toBeTruthy()
+      expect(changes!.x - (page_!.x + page_!.width), 'gap between settings and Changes').toBeLessThanOrEqual(48)
+      await page.screenshot({ path: shot(`desktop-${width}-general`) })
+    })
+  })
+}
