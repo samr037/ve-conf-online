@@ -3,30 +3,37 @@ import Testing
 import VEKit
 @testable import VEConfigure
 
-private let gridSampleAvailable = FileManager.default.fileExists(atPath:
-    URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        .deletingLastPathComponent().appendingPathComponent("samples/s5.rvsc").path)
+private let samplesDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+    .deletingLastPathComponent().appendingPathComponent("samples")
+/// Victron's grid code password is never written in this repository: give it through VE_GRID_PASSWORD.
+let gridKey = ProcessInfo.processInfo.environment["VE_GRID_PASSWORD"]?.trimmingCharacters(in: .whitespaces) ?? ""
+let hasGridKey = gridKey.count == 12
+private let gridSampleAvailable = hasGridKey
+    && FileManager.default.fileExists(atPath: samplesDir.appendingPathComponent("s5.rvsc").path)
+    && FileManager.default.fileExists(atPath: samplesDir.appendingPathComponent("s2.rvsc").path)
 
 @MainActor @Suite struct GridUnlockTests {
     private var sample: URL {
         URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().appendingPathComponent("samples/s5.rvsc")
     }
-    // Reference encoded token from VE Configure 9004248; s5 has no saved token.
-    private let referenceToken: [UInt8] = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
-    private func password(_ c: DeviceConfiguration) throws -> String { "XXXXXXXXXXXX" }
+    /// The token VE Configure 9004248 wrote into s2 after the password was entered (s5 has none).
+    private var referenceToken: [UInt8] {
+        (try? DeviceConfiguration(contentsOf: samplesDir.appendingPathComponent("s2.rvsc")))?.data.tokens.first ?? []
+    }
+    private func password(_ c: DeviceConfiguration) throws -> String { gridKey }
 
-    @Test func correctPasswordUnlocksOnlyItsSession() {
+    @Test(.enabled(if: hasGridKey, "set VE_GRID_PASSWORD")) func correctPasswordUnlocksOnlyItsSession() {
         var session = SessionState()
         let other = SessionState()
-        let accepted = session.unlockGrid(with: "  XXXXXXXXXXXX  ")
+        let accepted = session.unlockGrid(with: "  \(gridKey.lowercased())  ")
         #expect(accepted)
         #expect(session.gridPasswordEntered)
         #expect(!other.gridPasswordEntered)
     }
 
     @Test func badPasswordsDoNotUnlock() {
-        for input in ["", "x", "23456789ABCD", "XXXXXXXXXXX", String(repeating: "A", count: 1000)] {
+        for input in ["", "x", "23456789ABCD", "23456789ABC", String(repeating: "A", count: 1000)] {
             var session = SessionState()
             let accepted = session.unlockGrid(with: input)
             #expect(!accepted)

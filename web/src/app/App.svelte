@@ -25,7 +25,15 @@
     }
   }
 
+  /** A real .rvsc is a few KB; anything bigger than this is not one. */
+  const maxFileSize = 1 << 20
+
   async function openFile(f: File) {
+    if (f.size > maxFileSize) {
+      openError = t('openFailed')
+      if (editor.doc) editor.push({ k: 'message', title: t('openFailed'), message: '' })
+      return
+    }
     const bytes = new Uint8Array(await f.arrayBuffer())
     if (editor.doc?.isEdited && !(await confirmDiscard())) return
     if (!openBytes(bytes, f.name) && editor.doc) editor.push({ k: 'message', title: t('openFailed'), message: openError ?? '' })

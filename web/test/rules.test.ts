@@ -16,7 +16,11 @@ import {
 import { existsSync } from 'node:fs'
 import { bytes, catalogJSONPath, hasRulesGolden, hex, rulesGolden, samplePath, samples } from './fixtures'
 
-const gridKey = 'XXXXXXXXXXXX'
+// Victron's grid code password is never written in this repository: give it through the environment
+// (VE_GRID_PASSWORD) to run the tests that need it. They skip without it.
+const gridKey = process.env.VE_GRID_PASSWORD?.trim() ?? ''
+const hasKey = gridKey.length === 12
+const hasRulesRefs = hasRulesGolden && hasKey
 
 /** JSON-comparable form: numbers to 12 significant digits, undefined → null, Sets sorted. */
 function norm(x: unknown): unknown {
@@ -31,7 +35,7 @@ const same = (actual: unknown, expected: unknown, msg?: string) => expect(norm(a
 
 beforeAll(() => {
   useCatalog(buildCatalog(JSON.parse(readFileSync(catalogJSONPath, 'utf8'))))
-  if (hasRulesGolden) {
+  if (hasRulesRefs) {
     const g = rulesGolden('catalog.json')
     configureL10n({ language: g.language, locale: g.locale })
   } else {
@@ -64,7 +68,7 @@ function value(v: EValue | undefined): unknown {
 
 const fresh = (name: string, unlocked: boolean, env = {}) => {
   const d = ConfigDocument.open(bytes(samplePath(name)), `${name}.rvsc`, env)
-  if (unlocked) d.unlockGrid(gridKey)
+  if (unlocked && !d.unlockGrid(gridKey)) throw new Error('VE_GRID_PASSWORD is missing or wrong')
   return d
 }
 
@@ -268,7 +272,7 @@ function edits(name: string): Record<string, unknown>[] {
 
 // MARK: - Catalog-wide
 
-describe.runIf(hasRulesGolden)('catalog matches Swift', () => {
+describe.runIf(hasRulesRefs)('catalog matches Swift', () => {
   it('text helpers', () => {
     const g = rulesGolden('catalog.json')
     for (const [i, o] of g.cleanCaption) expect(cleanCaption(i)).toBe(o)
@@ -319,7 +323,7 @@ describe.runIf(hasRulesGolden)('catalog matches Swift', () => {
 // MARK: - Per sample
 
 for (const name of samples) {
-  describe.runIf(hasRulesGolden)(`rules on ${name} match Swift`, () => {
+  describe.runIf(hasRulesRefs)(`rules on ${name} match Swift`, () => {
     let g: any
     const env = () => ({ ratings: () => ({ dc: g.facts.ratings[0], ac: g.facts.ratings[1], power: g.facts.ratings[2] }) })
     beforeAll(() => { g = rulesGolden(`${name}.json`) })
@@ -447,19 +451,20 @@ for (const name of samples) {
 // MARK: - GridUnlockTests.swift
 
 describe('grid unlock', () => {
-  const referenceToken = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
-  const hasS5 = (() => { try { bytes(samplePath('s5')); return true } catch { return false } })()
+  const hasS5 = (() => { try { bytes(samplePath('s5')); return true } catch { return false } })() && hasKey
+  // The token VE Configure wrote into s2 after the password was entered: the one a save must write again.
+  const referenceToken = hasS5 && existsSync(samplePath('s2')) ? [...DeviceConfiguration.parse(bytes(samplePath('s2'))).data.tokens[0]!] : []
 
-  it('correct password unlocks only its session', () => {
+  it.runIf(hasKey)('correct password unlocks only its session', () => {
     const session = new SessionState()
     const other = new SessionState()
-    expect(session.unlockGrid('  XXXXXXXXXXXX  ')).toBe(true)
+    expect(session.unlockGrid(`  ${gridKey.toLowerCase()}  `)).toBe(true)
     expect(session.gridPasswordEntered).toBe(true)
     expect(other.gridPasswordEntered).toBe(false)
   })
 
   it('bad passwords do not unlock', () => {
-    for (const input of ['', 'x', '23456789ABCD', 'XXXXXXXXXXX', 'A'.repeat(1000)]) {
+    for (const input of ['', 'x', '23456789ABCD', '23456789ABC', 'A'.repeat(1000)]) {
       const session = new SessionState()
       expect(session.unlockGrid(input)).toBe(false)
       expect(session.gridPasswordEntered).toBe(false)

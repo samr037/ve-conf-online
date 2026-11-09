@@ -12,9 +12,8 @@ import VEKit
 
 private let rulesGoldenOut = ProcessInfo.processInfo.environment["VE_RULES_GOLDEN"]
 private let repoRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-private let gridKey = "XXXXXXXXXXXX"
 
-@MainActor @Suite(.serialized, .enabled(if: rulesGoldenOut != nil, "set VE_RULES_GOLDEN"))
+@MainActor @Suite(.serialized, .enabled(if: rulesGoldenOut != nil && hasGridKey, "set VE_RULES_GOLDEN and VE_GRID_PASSWORD"))
 struct RulesGoldenExport {
     var out: URL {
         let u = URL(fileURLWithPath: rulesGoldenOut!, relativeTo: repoRoot)
