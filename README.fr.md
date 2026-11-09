@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://samr037.github.io/ve-conf-online/"><img alt="Open Shunt" src="https://img.shields.io/badge/open-Shunt-1B5FAA?style=flat"></a>
   <a href="https://github.com/samr037/ve-conf-online/pkgs/container/ve-conf-online"><img alt="Docker image" src="https://img.shields.io/badge/docker-ghcr.io%2Fsamr037%2Fve--conf--online-2496ED?logo=docker&logoColor=white"></a>
-  <a href="LICENSE"><img alt="Licence" src="https://img.shields.io/github/license/samr037/ve-conf-online"></a>
+  <a href="LICENSE"><img alt="Licence" src="https://img.shields.io/badge/license-MIT-blue"></a>
   <br>
   <a href="https://github.com/samr037/ve-conf-online/actions/workflows/pages.yml"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/samr037/ve-conf-online/pages.yml?branch=main&label=build"></a>
   <a href="https://github.com/samr037/ve-conf-online/actions/workflows/swift.yml"><img alt="Swift engine" src="https://img.shields.io/github/actions/workflow/status/samr037/ve-conf-online/swift.yml?branch=main&label=swift%20engine&logo=swift&logoColor=white"></a>
