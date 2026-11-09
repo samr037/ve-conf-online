@@ -1,0 +1,10 @@
+services:
+  ve-configure:
+    build: .
+    image: ve-configure
+    ports:
+      - "8080:8080"
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped

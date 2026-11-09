@@ -1,0 +1,73 @@
+en	fr	de	es	source
+inverter	convertisseur	Wechselrichter	inversor	MultiPlus-II manual (settings table); assistants
+charger	chargeur	Ladegerät	cargador	MultiPlus-II manual; assistants ("Charger tab")
+inverter/charger	convertisseur/chargeur	Wechselrichter/Ladegerät	inversor/cargador	MultiPlus-II manual
+General (tab)	Général	Allgemein	General	VE Configure tab
+Grid (tab)	Réseau	Netz	Red	VE Configure tab (assistants call it "Grid" tab in FR/DE; translated here)
+Inverter (tab)	Convertisseur	Wechselrichter	Inversor	VE Configure tab
+Charger (tab)	Chargeur	Ladegerät	Cargador	assistants: "l'onglet Chargeur", "Tap Ladegerät", "pestaña Cargador"
+Virtual switch	commutateur virtuel	virtueller Schalter	interruptor virtual	not in assistant texts; Victron community usage
+Assistants (tab)	Assistants	Assistenten	Asistentes	assistants
+Advanced (tab)	Avancé	Erweitert	Avanzado	
+Assistant	assistant	Assistent	asistente	assistants
+absorption	absorption	Konstantspannung	absorción	assistants; MultiPlus-II manual
+absorption voltage	tension d'absorption	Konstantspannung	tensión de absorción	MultiPlus-II manual; assistants
+absorption time	durée d'absorption	Konstantspannungszeit	tiempo de absorción	MultiPlus-II manual; assistants
+maximum absorption time	durée d'absorption maximale	maximale Konstantspannungszeit	tiempo máximo de absorción	assistants (summary lines)
+repeated absorption time	durée d'absorption répétée	wiederholte Konstantspannungszeit	tiempo de absorción repetida	assistants; MultiPlus-II manual
+repeated absorption interval	intervalle d'absorption répétée	wiederholtes Konstantspannungsintervall	intervalo de absorción repetida	assistants
+float	float	Erhaltungsladung	flotación	assistants; MultiPlus-II manual
+float voltage	tension float	Erhaltungsspannung	tensión de flotación	MultiPlus-II manual (assistants DE: Ladeerhaltungsspannung)
+bulk	bulk	Konstantstromphase	carga inicial	assistants
+bulk protection	protection bulk	Konstantstrom-Sicherung	protección de carga inicial	MultiPlus-II manual; assistants
+storage mode	mode Storage	Lagerungsmodus	modo de almacenamiento	assistants; MultiPlus-II manual ("tension « Storage »")
+charge current	courant de charge	Ladestrom	corriente de carga	assistants; MultiPlus-II manual
+charge curve	courbe de charge	Ladekurve	curva de carga	MultiPlus-II manual
+charge efficiency	efficacité de charge	Ladewirkungsgrad	eficiencia de la carga	assistants
+equalisation	égalisation	Ausgleichsladung	ecualización	MultiPlus-II manual; assistants
+battery type	type de batterie	Batterietyp	tipo de batería	assistants; manual
+battery capacity	capacité de la batterie	Batteriekapazität	capacidad de la batería	assistants
+lithium batteries	batteries au lithium	Lithium-Batterien	baterías de litio	assistants
+temperature compensation	compensation de température	Temperaturkompensation	compensación de temperatura	assistants; manual
+battery monitor	contrôleur de batterie	Batteriewächter	monitor de batería	assistants ("contrôleur de batterie interne", "interner Batteriewächter", "monitor de batería interno")
+state of charge (SOC)	état de charge (SOC)	Ladezustand (SOC)	estado de la carga (SOC)	assistants
+AC input	entrée CA	AC-Eingang	entrada CA	assistants
+AC output	sortie CA	AC-Ausgang	salida CA	assistants
+AC input current limit	limite de courant d'entrée CA	AC-Eingangsstrombegrenzung	límite de corriente de entrada CA	assistants; MultiPlus-II manual
+overruled by remote	modifiable à distance	durch Fernbedienung übersteuerbar	anulado por control remoto	
+PowerAssist	PowerAssist	PowerAssist	PowerAssist	product feature name, never translated
+dynamic current limiter	limiteur de courant dynamique	dynamische Strombegrenzung	limitador de corriente dinámico	assistants; manual
+UPS function	fonction UPS	UPS-Funktion	función SAI	MultiPlus-II manual
+WeakAC	WeakAC	WeakAC	WeakAC	feature name
+BoostFactor	BoostFactor	BoostFactor	BoostFactor	feature name
+search mode	mode Recherche	Suchmodus	modo de búsqueda	MultiPlus-II manual
+AES (Automatic Economy Switch)	AES	AES	AES	manual keeps the English name
+ground relay	relais de terre	Erdungsrelais	relé de puesta a tierra	MultiPlus-II manual
+DC input low shut-down	arrêt en cas d'entrée CC faible	DC-Eingang niedrig - abschalten	desconexión por entrada CC baja	assistants (summary)
+DC input low restart	redémarrage en cas d'entrée CC faible	DC-Eingang niedrig - Neustart	reinicio por entrada CC baja	assistants (summary)
+DC input low pre-alarm	pré-alarme en cas d'entrée CC faible	DC-Eingang niedrig - Voralarm	prealarma por entrada CC baja	assistants (summary)
+shut-down	arrêt	Abschaltung	desconexión	assistants
+restart	redémarrage	Neustart	reinicio	assistants
+dynamic cut-off	coupure dynamique	dynamisches Abschalten	desconexión dinámica	assistants
+sustain voltage	tension de maintien	Sustain-Spannung	tensión de mantenimiento	assistants
+grid	réseau	Netz	red	assistants; manual
+mains	secteur	Stromnetz	red eléctrica	assistants
+grid code	code de réseau	Netzcode	código de red	MultiPlus-II manual
+feed-in (to the grid)	injection (dans le réseau)	Einspeisung (ins Netz)	inyección a la red	manual FR "injection d'électricité dans le réseau"; assistants DE "Einspeisung"
+ESS (Energy Storage System)	ESS (système de stockage d'énergie)	ESS (Energiespeichersystem)	ESS (sistema de almacenamiento de energía)	assistants; manual
+generator	générateur	Generator	generador	assistants
+shore current	courant de quai	Landstrom	corriente de pantalán	MultiPlus-II manual (FR); common Victron usage
+programmable relay	relais programmable	programmierbares Relais	relé programable	assistants; manual
+load shedding	délestage de charge	Lastabwurf	deslastre de carga	assistants
+relay	relais	Relais	relé	assistants
+master / slave	maître / esclave	Master / Slave	maestro / esclavo	assistants
+three-phase	triphasé	dreiphasig	trifásico	manual
+split phase	split-phase	Split-Phase	fase dividida	
+firmware	micrologiciel	Firmware	firmware	assistants
+setting / settings	paramètre / paramètres	Einstellung / Einstellungen	ajuste / ajustes	assistants
+password	mot de passe	Passwort	contraseña	manual FR "mot de passe"
+default	par défaut	Standard	por defecto	manual
+auxiliary input	entrée auxiliaire	Zusatzeingang	entrada auxiliar	assistants
+temperature sense input	entrée sonde de température	Temperatursensor-Eingang	entrada del sensor de temperatura	assistants
+VE.Bus BMS	BMS VE.Bus	VE.Bus BMS	BMS VE.Bus	assistants
+reactive power	puissance réactive	Blindleistung	potencia reactiva	MultiPlus-II manual
