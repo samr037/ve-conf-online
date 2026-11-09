@@ -10,6 +10,21 @@
 </p>
 
 <p align="center">
+  <a href="https://samr037.github.io/ve-conf-online/"><img alt="Open Shunt" src="https://img.shields.io/badge/open-Shunt-1B5FAA?style=flat"></a>
+  <a href="https://github.com/samr037/ve-conf-online/pkgs/container/ve-conf-online"><img alt="Docker image" src="https://img.shields.io/badge/docker-ghcr.io%2Fsamr037%2Fve--conf--online-2496ED?logo=docker&logoColor=white"></a>
+  <a href="LICENSE"><img alt="Licence" src="https://img.shields.io/github/license/samr037/ve-conf-online"></a>
+  <br>
+  <a href="https://github.com/samr037/ve-conf-online/actions/workflows/pages.yml"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/samr037/ve-conf-online/pages.yml?branch=main&label=build"></a>
+  <a href="https://github.com/samr037/ve-conf-online/actions/workflows/swift.yml"><img alt="Swift engine" src="https://img.shields.io/github/actions/workflow/status/samr037/ve-conf-online/swift.yml?branch=main&label=swift%20engine&logo=swift&logoColor=white"></a>
+  <a href="https://github.com/samr037/ve-conf-online/actions/workflows/codeql.yml"><img alt="CodeQL" src="https://img.shields.io/github/actions/workflow/status/samr037/ve-conf-online/codeql.yml?branch=main&label=CodeQL&logo=github"></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/samr037/ve-conf-online"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/samr037/ve-conf-online/badge"></a>
+  <a href="https://github.com/samr037/ve-conf-online/security"><img alt="Dependabot" src="https://img.shields.io/badge/dependabot-enabled-025E8C?logo=dependabot&logoColor=white"></a>
+  <br>
+  <img alt="Languages" src="https://img.shields.io/badge/languages-EN%20%C2%B7%20FR%20%C2%B7%20DE%20%C2%B7%20ES-6E40C9">
+  <img alt="MK3 / MK2" src="https://img.shields.io/badge/MK3%20%2F%20MK2-beta%2C%20read--only-B4531F">
+</p>
+
+<p align="center">
   <a href="https://samr037.github.io/ve-conf-online/"><b>Shunt öffnen</b></a>
 </p>
 
