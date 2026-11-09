@@ -117,7 +117,7 @@ Connect a device (beta, read-only): MK3-USB or MK2 in Chrome, Edge or other Chro
 
 ## Licence
 
-MIT, see [LICENSE](LICENSE). Victron's catalogue texts and Assistant library are not covered and remain Victron's property.
+MIT, see [LICENSE](LICENSE), [NOTICE](NOTICE). Victron's catalogue texts and Assistant library are not covered and remain Victron's property.
 
 ---
 

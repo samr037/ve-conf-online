@@ -117,7 +117,7 @@ Gerät verbinden (Beta, nur lesen): MK3-USB oder MK2 in Chrome, Edge oder andere
 
 ## Lizenz
 
-MIT, siehe [LICENSE](LICENSE). Die Katalogtexte und die Assistenten-Bibliothek von Victron sind nicht abgedeckt und bleiben Eigentum von Victron.
+MIT, siehe [LICENSE](LICENSE), [NOTICE](NOTICE). Die Katalogtexte und die Assistenten-Bibliothek von Victron sind nicht abgedeckt und bleiben Eigentum von Victron.
 
 ---
 

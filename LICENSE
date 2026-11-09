@@ -19,11 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-This licence covers the original work in this repository. It does not cover
-material owned by Victron Energy B.V. that the software needs to work: the
-VE Configure catalogue and help texts (catalog.json, catalog-strings.json and
-their translations) and the Assistant library (all112.vfp). Those remain the
-property of Victron Energy B.V.

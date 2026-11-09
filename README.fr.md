@@ -117,7 +117,7 @@ Connecter un appareil (bêta, lecture seule) : MK3-USB ou MK2 dans Chrome, Edge 
 
 ## Licence
 
-MIT, voir [LICENSE](LICENSE). Les textes du catalogue et la bibliothèque d'Assistants de Victron n'en font pas partie et restent la propriété de Victron.
+MIT, voir [LICENSE](LICENSE), [NOTICE](NOTICE). Les textes du catalogue et la bibliothèque d'Assistants de Victron n'en font pas partie et restent la propriété de Victron.
 
 ---
 
