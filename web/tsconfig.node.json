@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "types": ["node", "vitest/globals"], "noUncheckedIndexedAccess": false },
+  "include": ["test/**/*.ts", "vite.config.ts", "src/lib/**/*.ts"]
+}

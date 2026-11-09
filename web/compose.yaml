@@ -1,0 +1,10 @@
+services:
+  shunt:
+    build: .
+    image: shunt
+    ports:
+      - "8080:8080"
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped

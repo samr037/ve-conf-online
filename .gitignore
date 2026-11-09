@@ -1,0 +1,8 @@
+.build/
+.swiftpm/
+*.xcodeproj
+__pycache__/
+/dist/
+node_modules/
+web/fixtures/golden/
+.env.local
