@@ -14,7 +14,7 @@
 
 <aside class="changes" aria-labelledby="changes-title">
   <header>
-    <h2 id="changes-title">{L('Changes')}</h2>
+    <h2 id="changes-title" tabindex="-1">{L('Changes')}</h2>
     {#if changes.length > 1}
       <button type="button" class="btn small quiet restore-all" onclick={restoreAll}>{appText(editor.language, 'restoreAll')}</button>
     {/if}

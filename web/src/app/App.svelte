@@ -98,5 +98,8 @@
     position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 50;
     padding: 10px 16px; border-radius: 999px; background: var(--ink); color: var(--surface);
     font-size: 13px; box-shadow: var(--shadow-pop);
+    margin-bottom: env(safe-area-inset-bottom); max-width: calc(100vw - 32px); text-align: center;
   }
+  /* Above the save bar when it is up. */
+  :global(body:has(.savebar.shown)) .toast { bottom: calc(86px + env(safe-area-inset-bottom)); margin-bottom: 0; }
 </style>

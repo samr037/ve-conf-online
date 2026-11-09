@@ -5,7 +5,7 @@
   The brand blue belongs to the product block, lit symbols and changed values only.
 -->
 <script module lang="ts">
-  export interface Annotation { text: string; changed: boolean }
+  export interface Annotation { text: string; changed: boolean; /** For narrow drawings, where `text` does not fit. */ short?: string }
 </script>
 
 <script lang="ts">
@@ -104,10 +104,10 @@
       <text {x} y={y + 25} text-anchor="middle" class="label">{label}</text>
     {/snippet}
 
-    {#snippet note(part: string, x: number, y: number, anchor: 'middle' | 'end' = 'middle')}
+    {#snippet note(part: string, x: number, y: number, anchor: 'middle' | 'end' = 'middle', short = false)}
       {@const a = annotations[part]}
-      {#if a}
-        <text {x} {y} text-anchor={anchor} class="value" class:changed={a.changed}>{a.text}</text>
+      {#if a && (!short || a.short)}
+        <text {x} {y} text-anchor={anchor} class="value" class:changed={a.changed}>{short ? a.short : a.text}</text>
       {/if}
     {/snippet}
 
@@ -136,7 +136,7 @@
       <line x1={x + 5} y1={g.battery.y + 4} x2={x + 5} y2={g.battery.y + g.battery.h - 4} stroke={batOn ? 'var(--dc-negative)' : 'var(--unlit)'} stroke-width={batOn ? 3 : 2} />
     {/each}
     <text x={g.battery.x + g.battery.w + 10} y={g.battery.y + 12} class="label">{L('Battery')}</text>
-    {#if g.w >= 600}{@render note('battery', cx - 22, (g.multi.y + g.multi.h + g.battery.y) / 2 + 4, 'end')}{/if}
+    {@render note('battery', cx - 22, (g.multi.y + g.multi.h + g.battery.y) / 2 + 4, 'end', g.w < 600)}
 
     <!-- The Multi -->
     <rect x={g.multi.x} y={g.multi.y} width={g.multi.w} height={g.multi.h} rx="6" fill="var(--accent)" />

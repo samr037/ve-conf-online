@@ -66,3 +66,16 @@ select.field.changed { color: var(--changed); }
 .switch.changed input:checked ~ .track { background: var(--changed); }
 
 .kbd { font: 500 11px var(--font-mono); color: var(--muted); }
+
+/* Touch screens: every control is at least 44 × 44 px, and fields use 16 px text so iOS does not zoom on focus. */
+@media (pointer: coarse) {
+  .btn { height: auto; min-height: 44px; }
+  .btn.small { min-height: 44px; padding: 0 12px; font-size: 13px; }
+  .icon-btn, .icon-btn.small { width: 44px; height: 44px; }
+  .field { height: 44px; font-size: 16px; }
+  .field.value { width: 88px; font-size: 16px; }
+  select.field { background-position: calc(100% - 15px) 19px, calc(100% - 10px) 19px; }
+  .segmented button { height: 44px; padding: 0 14px; font-size: 14px; }
+  /* The switch stays 36 × 20 to the eye; its checkbox covers 44 × 44. */
+  .switch input { inset: -12px -4px; width: auto; height: auto; }
+}

@@ -85,7 +85,7 @@
   <div class="device" data-phase={phase}>
     {#if phase === 'intro'}
       <div class="plug" aria-hidden="true">
-        <svg width="336" height="72" viewBox="-12 0 336 72">
+        <svg width="336" height="72" viewBox="-12 0 336 72" preserveAspectRatio="xMidYMid meet">
           <rect x="8" y="14" width="50" height="32" rx="3" class="line" />
           <path d="M2 50h62" class="line" />
           <text x="33" y="66" text-anchor="middle">{t('computer')}</text>
@@ -145,6 +145,7 @@
   .device { min-height: 96px; }
   p { margin: 0; }
   .plug { display: flex; justify-content: center; margin: 4px 0 18px; color: var(--muted); }
+  .plug svg { width: 100%; max-width: 336px; height: auto; }
   .plug text { font: 500 11px var(--font-sans); fill: var(--muted); }
   .plug .small { font: 500 10px var(--font-mono); }
   .plug .line { fill: none; stroke: var(--ink-2); stroke-width: 1.5; stroke-linecap: round; }
@@ -158,7 +159,7 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   fieldset { margin: 0; padding: 0; border: 0; display: grid; gap: 4px; }
   legend { padding: 0; margin-bottom: 10px; color: var(--ink-2); }
-  .choice { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-block); color: var(--ink); cursor: pointer; }
+  .choice { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-block); color: var(--ink); cursor: pointer; }
   .choice:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
   .progress { padding: 20px 0 6px; }
   .bar { height: 8px; border-radius: 4px; background: var(--line-faint); overflow: hidden; }

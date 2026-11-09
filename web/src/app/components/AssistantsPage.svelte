@@ -189,4 +189,13 @@
   .m-title { font-weight: 500; }
   .m-blurb { font-size: 12px; line-height: 1.4; color: var(--muted); }
   .loading { color: var(--muted); padding: var(--space-sheet) 0; }
+  @media (pointer: coarse) {
+    .menu button { min-height: 44px; justify-content: center; }
+    .link { display: inline-flex; align-items: center; min-height: 44px; }
+  }
+  @media (max-width: 480px) {
+    .a-head { flex-wrap: wrap; }
+    dl { grid-template-columns: minmax(0, 1fr); gap: 2px 0; }
+    dd + dt { margin-top: 8px; }
+  }
 </style>

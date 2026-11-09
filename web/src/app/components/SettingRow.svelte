@@ -101,12 +101,16 @@
     <div class="ctl">
       {@render restoreButton()}
       <div class="stepper">
+        <button type="button" class="tstep" tabindex="-1" aria-label={appText(editor.language, 'decrease', { label: row.label })} disabled={!editable} onclick={() => stepBy(-1)}>
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 7h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
+        </button>
         <input
           id={fieldID}
           class="field value"
           class:changed={row.changed}
           class:invalid
           inputmode="decimal"
+          enterkeyhint="done"
           autocomplete="off"
           spellcheck="false"
           value={draft ?? shown}
@@ -123,6 +127,9 @@
             <svg width="9" height="6" viewBox="0 0 9 6" aria-hidden="true"><path d="M1 1 4.5 4.5 8 1" fill="none" stroke="currentColor" stroke-width="1.4" /></svg>
           </button>
         </span>
+        <button type="button" class="tstep" tabindex="-1" aria-label={appText(editor.language, 'increase', { label: row.label })} disabled={!editable} onclick={() => stepBy(1)}>
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 7h8M7 3v8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
+        </button>
       </div>
       <span class="unit">{row.unit ?? ''}</span>
       <InfoButton {row} />
@@ -243,6 +250,26 @@
   .arrows button:hover:not(:disabled) { background: var(--line-faint); color: var(--ink); }
   .arrows button:disabled { cursor: default; opacity: 0.5; }
   select.wide { width: min(420px, 52vw); }
+  .tstep { display: none; }
+
+  /* Touch: the tiny arrows give way to − and + buttons either side of the field. */
+  @media (pointer: coarse) {
+    .arrows { display: none; }
+    .stepper .field { border-radius: 0; border-left: 0; border-right: 0; }
+    .tstep {
+      display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0;
+      border: 1px solid var(--line-strong); background: var(--surface-sunken); color: var(--ink-2); cursor: pointer;
+      -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+    }
+    .tstep:first-child { border-radius: var(--radius-block) 0 0 var(--radius-block); }
+    .tstep:last-child { border-radius: 0 var(--radius-block) var(--radius-block) 0; }
+    .tstep:active:not(:disabled) { background: var(--line-faint); }
+    .tstep:disabled { opacity: 0.45; cursor: default; }
+    .stepper:has(.field.changed) .tstep { border-color: var(--changed); }
+    .stepper:has(.field:focus) .tstep { border-color: var(--accent); }
+    .radio-option { min-height: 44px; align-items: center; padding: 8px 10px; }
+    .radio-option input { margin: 0; }
+  }
 
   .note { grid-template-columns: auto minmax(0, 1fr); align-items: start; color: var(--muted); }
   .note svg { margin-top: 2px; }
@@ -267,7 +294,11 @@
     .unit:empty { display: none; }
   }
   @media (max-width: 480px) {
-    .row:has(.stepper), .row:has(select.field) { grid-template-columns: 1fr; }
-    .row:has(.stepper) .ctl, .row:has(select.field) .ctl { justify-content: flex-start; }
+    .row:has(.ctl > .btn) { grid-template-columns: minmax(0, 1fr); }
+    .row:has(.ctl > .btn) .ctl { justify-content: space-between; }
+    .row:has(.stepper), .row:has(select.field) { grid-template-columns: minmax(0, 1fr); padding-top: 10px; padding-bottom: 10px; }
+    .row:has(.stepper) .ctl, .row:has(select.field) .ctl { justify-content: flex-start; min-width: 0; }
+    .row:has(select.field) select.field { flex: 1 1 0; min-width: 0; width: 0; text-overflow: ellipsis; }
+    .row:has(.stepper) .unit { flex: 1; }
   }
 </style>

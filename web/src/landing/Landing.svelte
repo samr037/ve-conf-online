@@ -513,4 +513,12 @@
     .actions { width: 100%; }
     .actions .button { flex: 1 1 100%; }
   }
+  /* Touch: 44 px targets and 16 px text in the language select (no zoom on iOS). */
+  @media (pointer: coarse) {
+    .lang select { height: 44px; font-size: 16px; }
+    .links a { display: inline-flex; align-items: center; min-height: 44px; padding: 0; }
+    .mark { min-height: 44px; }
+    .copy { min-height: 44px; }
+    .device a, .foot-inner > a { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; }
+  }
 </style>

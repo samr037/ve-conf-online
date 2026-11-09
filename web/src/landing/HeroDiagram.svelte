@@ -20,7 +20,7 @@
 </script>
 
 <div class="diagram" class:dragging>
-  <svg class="wiring" viewBox="0 0 1000 300" role="img" aria-label={label}>
+  <svg class="wiring wide" viewBox="0 0 1000 300" role="img" aria-label={label}>
     <!-- AC source -->
     <g class="symbol">
       <circle cx="96" cy="123" r="30" />
@@ -66,6 +66,40 @@
       <line x1="474" y1="274" x2="526" y2="274" class="short" />
     </g>
     <text x="564" y="264" class="part start">{battery} · 48 V</text>
+  </svg>
+
+  <!-- Phones: the same circuit drawn tighter, so the block (the drop button) is big enough to read and tap. -->
+  <svg class="wiring narrow" viewBox="0 0 400 250" role="img" aria-label={label}>
+    <g class="symbol">
+      <circle cx="30" cy="90" r="18" />
+      <path d="M20 90c3-7 7-7 10 0s7 7 10 0" class="wave" />
+    </g>
+    <text x="30" y="129" class="part">{grid}</text>
+    <line x1="48" y1="88" x2="70" y2="88" class="ac-line base" />
+    <line x1="48" y1="88" x2="70" y2="88" class="ac-line flow" />
+    <line x1="48" y1="93" x2="70" y2="93" class="ac-neutral" />
+
+    <line x1="330" y1="88" x2="352" y2="88" class="ac-line base" />
+    <line x1="330" y1="88" x2="352" y2="88" class="ac-line flow" />
+    <line x1="330" y1="93" x2="352" y2="93" class="ac-neutral" />
+    <g class="symbol">
+      <circle cx="370" cy="90" r="18" />
+      <path d="M357.3 77.3l25.4 25.4M382.7 77.3l-25.4 25.4" />
+    </g>
+    <text x="370" y="129" class="part">{loads}</text>
+
+    <line x1="188" y1="152" x2="188" y2="196" class="dc-pos base" />
+    <line x1="188" y1="152" x2="188" y2="196" class="dc-pos flow" />
+    <line x1="212" y1="152" x2="212" y2="196" class="dc-neg" />
+    <circle cx="188" cy="152" r="3" class="terminal" />
+    <circle cx="212" cy="152" r="3" class="terminal" />
+    <g class="cells">
+      <line x1="166" y1="200" x2="234" y2="200" />
+      <line x1="180" y1="209" x2="220" y2="209" class="short" />
+      <line x1="166" y1="218" x2="234" y2="218" />
+      <line x1="180" y1="227" x2="220" y2="227" class="short" />
+    </g>
+    <text x="248" y="218" class="part start">{battery} · 48 V</text>
   </svg>
 
   <button type="button" class="drop" onclick={onchoose} disabled={busy} aria-describedby="drop-hint">
@@ -175,21 +209,25 @@
   .drop-title { font-size: clamp(14px, 1.6vw, 18px); font-weight: 600; }
   .drop-hint { font-size: clamp(12px, 1.2vw, 14px); color: color-mix(in srgb, var(--on-accent) 78%, transparent); }
 
-  /* Small screens: the drawing stays a picture, the drop target becomes a full-width button below it. */
+  .narrow { display: none; }
+
+  /* Phones: the tighter drawing; the drop button covers its block (70–330 × 28–152 of 400 × 250), as on wide screens. */
   @media (max-width: 720px) {
-    .diagram { aspect-ratio: auto; display: flex; flex-direction: column; gap: 20px; }
-    .wiring { position: static; height: auto; aspect-ratio: 1000 / 300; }
-    .part { font-size: 30px; }
-    .value { display: none; }
+    .diagram { max-width: 440px; aspect-ratio: 400 / 250; }
+    .wide { display: none; }
+    .narrow { display: block; }
+    .part { font-size: 14px; }
+    .narrow .cells line { stroke-width: 2; }
+    .narrow .cells .short { stroke-width: 3.5; }
     .drop {
-      position: static;
-      width: 100%;
-      height: auto;
-      min-height: 112px;
-      padding: 20px;
-      outline-offset: -10px;
+      left: 17.5%;
+      top: 11.2%;
+      width: 65%;
+      height: 49.6%;
+      padding: 10px 14px;
+      outline-offset: -8px;
     }
-    .drop-title { font-size: 17px; }
-    .drop-hint { font-size: 14px; }
+    .drop-title { font-size: 16px; line-height: 1.25; text-wrap: balance; }
+    .drop-hint { font-size: 13.5px; }
   }
 </style>

@@ -36,4 +36,10 @@
   .lang:focus-within { box-shadow: var(--focus); }
   .lang select { appearance: none; border: 0; background: transparent; color: var(--ink-2); font: 500 13px var(--font-sans); cursor: pointer; padding-right: 2px; }
   .lang select:focus { outline: none; }
+  /* Touch: the whole pill is the select, 44 px tall, with 16 px text (no zoom on iOS). */
+  @media (pointer: coarse) {
+    .lang { height: 44px; padding: 0; }
+    .lang svg { position: absolute; left: 10px; pointer-events: none; }
+    .lang select { height: 44px; padding: 0 12px 0 31px; font-size: 16px; }
+  }
 </style>

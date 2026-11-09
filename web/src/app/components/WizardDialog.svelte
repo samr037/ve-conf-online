@@ -137,4 +137,10 @@
   .entry-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; color: var(--ink); }
   .error { margin: 0; font-size: 13px; color: var(--danger); }
   .progress { margin-right: auto; align-self: center; font: 12px var(--font-mono); color: var(--muted); }
+  .entry .field.value { width: 110px; }
+  @media (pointer: coarse) { .choice { min-height: 44px; } .choice input { margin-top: 2px; } }
+  @media (max-width: 600px) {
+    .wizard { min-height: 0; }
+    .progress { flex: 1 1 100%; margin: 0 0 2px; }
+  }
 </style>

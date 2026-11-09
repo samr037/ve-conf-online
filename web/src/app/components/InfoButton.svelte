@@ -56,4 +56,13 @@
   .range { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink); }
   .note { padding-left: 10px; border-left: 2px solid var(--line-strong); }
   .stored { font: 11.5px var(--font-mono); color: var(--muted); user-select: text; }
+  /* Phones: the help sits at the bottom of the screen, full width, instead of hanging off the button. */
+  @media (max-width: 600px) {
+    .pop {
+      position: fixed; z-index: 40; top: auto; right: max(10px, env(safe-area-inset-right)); left: max(10px, env(safe-area-inset-left));
+      bottom: calc(10px + env(safe-area-inset-bottom)); width: auto; max-height: min(60vh, 440px);
+      padding: 16px 18px; overscroll-behavior: contain;
+    }
+    p { font-size: 14px; }
+  }
 </style>

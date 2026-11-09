@@ -86,4 +86,9 @@
   dl { flex: 2 1 300px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px 16px; margin: 0; align-content: start; font-size: 13px; }
   dt { color: var(--muted); }
   dd { margin: 0; font-family: var(--font-mono); font-size: 12.5px; color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
+  @media (pointer: coarse) { .list button { min-height: 44px; font-size: 14.5px; } }
+  @media (max-width: 600px) {
+    .list { max-width: none; max-height: 34vh; }
+    dl { flex-basis: 100%; }
+  }
 </style>

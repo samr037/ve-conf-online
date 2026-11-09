@@ -82,6 +82,8 @@ const en = {
   deviceBanner: 'Read from {model} on {port}, {time}. Read-only beta.',
   deviceAssistants: 'The assistant program cannot be read over the interface yet.',
   deviceNoSave: 'Read-only beta: this configuration cannot be saved.',
+  moreActions: 'More actions',
+  reviewChanges: 'Review the changes',
 }
 
 export type AppKey = keyof typeof en
@@ -168,6 +170,8 @@ const dict: Dictionary<AppKey> = {
     deviceBanner: 'Lu sur {model} via {port}, {time}. Bêta en lecture seule.',
     deviceAssistants: 'Le programme des assistants ne peut pas encore être lu par l’interface.',
     deviceNoSave: 'Bêta en lecture seule : cette configuration ne peut pas être enregistrée.',
+    moreActions: 'Plus d’actions',
+    reviewChanges: 'Voir les modifications',
   },
   de: {
     loading: 'Wird geladen…',
@@ -249,6 +253,8 @@ const dict: Dictionary<AppKey> = {
     deviceBanner: 'Gelesen von {model} über {port}, {time}. Beta, nur lesen.',
     deviceAssistants: 'Das Assistenten-Programm kann über die Schnittstelle noch nicht gelesen werden.',
     deviceNoSave: 'Beta, nur lesen: diese Konfiguration kann nicht gespeichert werden.',
+    moreActions: 'Weitere Aktionen',
+    reviewChanges: 'Änderungen ansehen',
   },
   es: {
     loading: 'Cargando…',
@@ -330,6 +336,8 @@ const dict: Dictionary<AppKey> = {
     deviceBanner: 'Leído de {model} por {port}, {time}. Beta de solo lectura.',
     deviceAssistants: 'El programa de asistentes aún no se puede leer por la interfaz.',
     deviceNoSave: 'Beta de solo lectura: esta configuración no se puede guardar.',
+    moreActions: 'Más acciones',
+    reviewChanges: 'Ver los cambios',
   },
 }
 

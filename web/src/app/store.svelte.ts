@@ -50,9 +50,17 @@ function readTheme(): 'auto' | 'light' | 'dark' {
   }
 }
 
+/** The browser bar's colour (app.html): the header surface, light and dark. */
+const themeColors = { light: '#ffffff', dark: '#1c2026' } as const
+
 export function applyTheme(t: 'auto' | 'light' | 'dark'): void {
   if (t === 'auto') delete document.documentElement.dataset.theme
   else document.documentElement.dataset.theme = t
+  // A forced theme overrides both media-specific theme-color tags; Automatic gives each its own back.
+  for (const m of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"][data-scheme]')) {
+    const scheme = m.dataset.scheme as 'light' | 'dark'
+    m.content = themeColors[t === 'auto' ? scheme : t]
+  }
 }
 
 class EditorStore {
