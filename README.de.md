@@ -17,7 +17,6 @@
   <a href="https://github.com/samr037/ve-conf-online/actions/workflows/pages.yml"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/samr037/ve-conf-online/pages.yml?branch=main&label=build"></a>
   <a href="https://github.com/samr037/ve-conf-online/actions/workflows/swift.yml"><img alt="Swift engine" src="https://img.shields.io/github/actions/workflow/status/samr037/ve-conf-online/swift.yml?branch=main&label=swift%20engine&logo=swift&logoColor=white"></a>
   <a href="https://github.com/samr037/ve-conf-online/actions/workflows/codeql.yml"><img alt="CodeQL" src="https://img.shields.io/github/actions/workflow/status/samr037/ve-conf-online/codeql.yml?branch=main&label=CodeQL&logo=github"></a>
-  <a href="https://scorecard.dev/viewer/?uri=github.com/samr037/ve-conf-online"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/samr037/ve-conf-online/badge"></a>
   <a href="https://github.com/samr037/ve-conf-online/security"><img alt="Dependabot" src="https://img.shields.io/badge/dependabot-enabled-025E8C?logo=dependabot&logoColor=white"></a>
   <br>
   <img alt="Languages" src="https://img.shields.io/badge/languages-EN%20%C2%B7%20FR%20%C2%B7%20DE%20%C2%B7%20ES-6E40C9">
